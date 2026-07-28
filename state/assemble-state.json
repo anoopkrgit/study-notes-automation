@@ -1,0 +1,1316 @@
+{
+  "processed": {
+    "ab492e6960c0b3e6021bab427b97dcfe900c5a484827884c9510ddd149541a91": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-05-10_Chem_Ch-1_Gaseous-State_FAV-lec01-PS-CHAMP-C7.pdf",
+      "name": "26-05-10_Chem_Ch-1_Gaseous-State_FAV-lec01-PS-CHAMP-C7.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.98)",
+      "ts": "2026-07-25T22:13:37"
+    },
+    "065fa5d30c46ec1910bb2eb1a3e5e3eb48d149a499f6f14bd91098aa3413e743": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-05-22_Chem_Ch-1_Gaseous-State_Lec02-fadv-c7-champ.pdf",
+      "name": "26-05-22_Chem_Ch-1_Gaseous-State_Lec02-fadv-c7-champ.pdf",
+      "kind": "transcript-review",
+      "targets": [],
+      "route": "review (placement disagreement)",
+      "ts": "2026-07-25T22:13:40"
+    },
+    "15f23211f7a87d10104b8e73d8117fd2902fba301cc5d0008451ebd940e5c046": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-06-09_Chem_Ch-1_Gaseous-State_fadv-lec-3-champ-c7.pdf",
+      "name": "26-06-09_Chem_Ch-1_Gaseous-State_fadv-lec-3-champ-c7.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:13:43"
+    },
+    "826fc42a1042029d8fb089d30ebe1b9062c6aa219f252eaf27a369d4cd3d6417": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-08_Chem_Ch-1_Gaseous-State_fadv-lec-5-c7.pdf",
+      "name": "26-07-08_Chem_Ch-1_Gaseous-State_fadv-lec-5-c7.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:13:46"
+    },
+    "2fbd1dbacff9393b18f0c0e4b981040e2bc8852c988cecaca9800058abecbacf": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-24_Chem_Ch-1_Gaseous-State_fadv-lec-5-coc.pdf",
+      "name": "26-07-24_Chem_Ch-1_Gaseous-State_fadv-lec-5-coc.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:13:49"
+    },
+    "563f0ca6b268f3a47106ec518f9a5b7d6db932eaacde183163b199a51aa514eb": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-24_Chem_Ch-2_Chemical-Equilibrium_fadv-c7-lec-06-champ.pdf",
+      "name": "26-07-24_Chem_Ch-2_Chemical-Equilibrium_fadv-c7-lec-06-champ.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Chemistry-Ch2-Chemical-Equilibrium"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:13:51"
+    },
+    "c6977fb3f14e4cc03d31aa39a148be25c8936e43ff61b9298f9a57d2b9d3137b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-12_Maths_Ch-2_Circles.pdf",
+      "name": "26-07-12_Maths_Ch-2_Circles.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Maths-Ch2-Circles"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.98)",
+      "ts": "2026-07-25T22:13:54"
+    },
+    "9377f9fc397fd6b54bbf2c0ac5c35aba4fee916633e0677c5478115807b93766": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-19_Maths_Ch-2_Circles_19-07-2026.pdf",
+      "name": "26-07-19_Maths_Ch-2_Circles_19-07-2026.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Maths-Ch2-Circles"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:13:57"
+    },
+    "cc03d42a21311711581f6126a2fbde9c1adcd9250915493f5e24890597b177ed": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-05-08_Phy_Ch-1_Force-&-Laws-of-Motion_FA27-Lec1.pdf",
+      "name": "26-05-08_Phy_Ch-1_Force-&-Laws-of-Motion_FA27-Lec1.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch1-Force-and-Laws-of-Motion"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:14:02"
+    },
+    "30b7f2a7168d492ed3c92652eb25e53f9b74b307903b9d83098f0b4f357452cf": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-05-31_Phy_Ch-1_Force-&-Laws-of-Motion_FA27-Lec2.pdf",
+      "name": "26-05-31_Phy_Ch-1_Force-&-Laws-of-Motion_FA27-Lec2.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch1-Force-and-Laws-of-Motion"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:14:04"
+    },
+    "33bf8dcd953bed7d9174094dc6f4bc2ab5098a53c92c966fd002d1dcdbd98412": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-06-05_Phy_Ch-2_Work-Energy-Theorem_FA27-Lec3.pdf",
+      "name": "26-06-05_Phy_Ch-2_Work-Energy-Theorem_FA27-Lec3.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch2-Work-Energy-Theorem"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:14:07"
+    },
+    "08c8ca39322fb70efa9eb35f649f70031d88ce029c913a596bd5450499f49727": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-10_Phy_Ch-4_Vectors_FA27-Lec5.pdf",
+      "name": "26-07-10_Phy_Ch-4_Vectors_FA27-Lec5.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch4-Vectors"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:14:11"
+    },
+    "8230f19d0d819c83e26188358f6b71bbab2c23200d362246af39167cc707eff5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-17_Phy_Ch-4_Vectors_FA27-Lec5.pdf",
+      "name": "26-07-17_Phy_Ch-4_Vectors_FA27-Lec5.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch4-Vectors"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:14:13"
+    },
+    "1632096ab40439aecbc30410cf1d41a74f530f0c798444d7298a9faf38e7fc3e": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-17_Phy_Ch-4_Vectors_FA27-Lec6.pdf",
+      "name": "26-07-17_Phy_Ch-4_Vectors_FA27-Lec6.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch4-Vectors"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-25T22:14:15"
+    },
+    "2040bbc8327ca4657ad77b5dae1246f7213cc884c5c72dcab0855f0c32e67dd0": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12145-JEE-Main-Permutations-and-Combinations-Revision-Notes-Free-PDF-Download.pdf",
+      "name": "12145-JEE-Main-Permutations-and-Combinations-Revision-Notes-Free-PDF-Download.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch3-Permutations-and-Combination/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'PERMUTATION AND COMBINATIONS' and covers fundamental counting principles, permutations, circular permutations, and combinations - all core topics of Maths Ch-3 Permutations and Combination",
+      "ts": "2026-07-25T22:14:18"
+    },
+    "8e26f2e60501df0629c996e7d931507adb2c10db2ce675f09b02234e54729cdb": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/1266-JEE-Main-Maths-Revision-Notes-on-Complex-Numbers-and-Quadratic-Equations.pdf",
+      "name": "1266-JEE-Main-Maths-Revision-Notes-on-Complex-Numbers-and-Quadratic-Equations.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers complex numbers and quadratic equations - core topics for Quadratic Equations chapter including discriminant, roots formulas, and related properties",
+      "ts": "2026-07-25T22:14:20"
+    },
+    "e1455479983473b86311e611b7b297d73a3c59e3c1586986603945154ef3909b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-26_Chem_Ch-2_Chemical-Equilibrium_fadv-lec-7-c7-champ.pdf",
+      "name": "26-07-26_Chem_Ch-2_Chemical-Equilibrium_fadv-lec-7-c7-champ.pdf",
+      "kind": "transcript",
+      "targets": [
+        "Chemistry-Ch2-Chemical-Equilibrium"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-07-27T03:00:35"
+    },
+    "62a55c112709525273b312aded2093ab8ca184e508885a6f168694af340b2c10": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/105623-NCERT-Solutions-for-Class-9-Maths-Chapter-3-Coordinate-Geometry-PDF.pdf",
+      "name": "105623-NCERT-Solutions-for-Class-9-Maths-Chapter-3-Coordinate-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Chapter 3: Coordinate Geometry' from NCERT Class IX Maths. It covers the Cartesian plane, coordinates, axes, quadrants, and plotting points on a coordinate system. While the internal chapter is labeled '3', this foundational coordinate geometry content aligns with the Straight Lines chapter (Maths Ch-5) in the provided bucket system, as coordinate geometry and the Cartesian plane form the fundamental basis for understanding straight lines, their equations, and geometric relationships.",
+      "ts": "2026-07-27T18:56:56"
+    },
+    "88e5035428fc1223c2a489485dc94bb3900a6ed0ac13a5fdde0ef2a89a3167c9": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/105833-NCERT-Solutions-for-Class-9-Maths-Chapter-4-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "105833-NCERT-Solutions-for-Class-9-Maths-Chapter-4-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers Linear Equations in Two Variables from Class IX NCERT Chapter 4, which is foundational to understanding coordinate geometry and straight lines. The content includes writing linear equations in standard form (ax + by + c = 0), finding solutions, and graphical representation concepts that directly support Straight Lines chapter material.",
+      "ts": "2026-07-27T18:57:00"
+    },
+    "6a65a71cb5208189e30b45e7caae2803b4c3c38cddbd3cb916f16196f5a4fb75": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/11129-NCERT-Solutions-for-Class-9-Maths-Chapter-5-Introduction-To-Euclid\u2019s-Geometry-PDF.pdf",
+      "name": "11129-NCERT-Solutions-for-Class-9-Maths-Chapter-5-Introduction-To-Euclid\u2019s-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Chapter 5: Introduction to Euclid's Geometry' and contains NCERT solutions for Class IX Maths. While the content covers foundational geometry concepts (lines, circles, points, definitions), it directly aligns with Maths Ch-5 Straight Lines which covers fundamental geometric concepts including points, lines, and their properties as foundational material.",
+      "ts": "2026-07-27T18:57:04"
+    },
+    "2d71ab3636538b0e294beccdd19739a4ef537ff125d8276ff9ebda32d63b4c15": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/11129-NCERT-Solutions-for-Class-9-Maths-Chapter-8-Quadrilaterals-PDF.pdf",
+      "name": "11129-NCERT-Solutions-for-Class-9-Maths-Chapter-8-Quadrilaterals-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT Solutions for Class 9 Maths Chapter 8 on Quadrilaterals. Contains detailed proofs and problems about properties of parallelograms, rectangles, rhombus, and squares with geometric diagrams.",
+      "ts": "2026-07-27T18:57:07"
+    },
+    "2dd4e9fcd9cce980f2325a00b73cb7ab6c1500abf50a9d72072f692841ab975e": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/11169-NCERT-Solutions-for-Class-9-Maths-Chapter-9-Circles-PDF.pdf",
+      "name": "11169-NCERT-Solutions-for-Class-9-Maths-Chapter-9-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document contains NCERT Solutions for Class 9 Maths Chapter 9: Circles. The exercises cover properties of chords, congruent circles, equal chords, and angles subtended at centres - all core topics in circle geometry that directly support the Circles chapter.",
+      "ts": "2026-07-27T18:57:10"
+    },
+    "07ada45dd94618747b777a41b9bf986fbada7eb8fc71cc9b773e61d75a023158": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/111943-NCERT-Solutions-for-Class-9-Maths-Chapter-10-Heron\u2019s-Formula-PDF.pdf",
+      "name": "111943-NCERT-Solutions-for-Class-9-Maths-Chapter-10-Heron\u2019s-Formula-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:57:17"
+    },
+    "e0aab7b07b74aa947130f22750c5dbe85cdd561c06b56f045b150ae7a9adbabf": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/112152-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "112152-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:57:25"
+    },
+    "65155105faf3be1e5aa09fa4126b608ec72f2f0aafce44cb098717a04ae3c98b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/112343-NCERT-Solutions-for-Class-9-Maths-Chapter-12-Statistics-PDF.pdf",
+      "name": "112343-NCERT-Solutions-for-Class-9-Maths-Chapter-12-Statistics-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:57:33"
+    },
+    "4aebbeafbf91921c591fc7bb8da4f3af7bd1cdcbdfb34b2be645ddeafcd80837": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/11345-NCERT-Solutions-for-Class-9-Maths-Chapter-6-Lines-and-Angles-PDF.pdf",
+      "name": "11345-NCERT-Solutions-for-Class-9-Maths-Chapter-6-Lines-and-Angles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'CLASS IX: MATHS Chapter 6: Lines and Angles' from NCERT Books. Although the header says Chapter 6, the content covers fundamental properties of lines and angles (intersecting lines, vertically opposite angles, linear pairs, perpendicular lines, etc.), which are foundational geometry concepts. In the 9th-grade curriculum context provided, this maps to Maths Ch-5 (Straight Lines) as the closest match for line geometry and angle relationships.",
+      "ts": "2026-07-27T18:57:40"
+    },
+    "7f03d2a3435b9f5f4de16d67f6ddb9ab7ab772b56a74f782875dbbd1f01f3a50": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/114859-NCERT-Solutions-for-Class-10-Maths-Chapter-1-Real-Numbers-PDF.pdf",
+      "name": "114859-NCERT-Solutions-for-Class-10-Maths-Chapter-1-Real-Numbers-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:57:46"
+    },
+    "7bce96c64e890cd3e3eda3565ca6e3c29b2564508b8edf90489301c176e2a8fc": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/11545-NCERT-Solutions-for-Class-9-Maths-Chapter-7-Triangles-PDF.pdf",
+      "name": "11545-NCERT-Solutions-for-Class-9-Maths-Chapter-7-Triangles-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:57:54"
+    },
+    "43f19ba1064b83afe11270868738198c658855c7d7b9009074875351650a321b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/121353-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "121353-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document contains solutions for linear equations in two variables, which is foundational content for understanding straight lines (graphical representation, slopes, and intersection points). While this is technically Class X (10th grade) content on pair of linear equations, the concepts directly support understanding straight line equations, intersecting lines, and parallel lines.",
+      "ts": "2026-07-27T18:57:58"
+    },
+    "b51fc75ebfc1ad89e97d8d496c762b93831198b92750a97df44fb7e10adf7a9f": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/121916-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Quadratic-Equations-PDF.pdf",
+      "name": "121916-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Quadratic-Equations-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Chapter 4: Quadratic Solutions' and contains NCERT Exercise 4.1 focused on checking whether equations are quadratic and representing situations as quadratic equations. This directly aligns with Maths Ch-1 Quadratic Equations curriculum.",
+      "ts": "2026-07-27T18:58:05"
+    },
+    "08c5ad11073bdde6c8be7e19a3c3c90d4f964d4f0bb1bed0e6b3747c2b9c5ef7": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/122248-NCERT-Solutions-for-Class-10-Maths-Chapter 5-Arithmetic-Progressions-PDF.pdf",
+      "name": "122248-NCERT-Solutions-for-Class-10-Maths-Chapter 5-Arithmetic-Progressions-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly titled 'Chapter 5: Arithmetic Progressions' from Class X Maths NCERT. However, Arithmetic Progressions is a Class 10 topic, not Class 9. The valid buckets provided are for 9th-grade (Ch-1 through Ch-8). No valid 9th-grade Maths bucket matches this Class 10 content on Arithmetic Progressions.",
+      "ts": "2026-07-27T18:58:10"
+    },
+    "a61f4ba7cbdf5c0382af35a8be9f50a07c9633ecb39226a488612feed7f887e3": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12248-NCERT-Solutions-for-Class-10-Maths-chapter-7-Exercise-7.1-Coordinate-Geometry-PDF.pdf",
+      "name": "12248-NCERT-Solutions-for-Class-10-Maths-chapter-7-Exercise-7.1-Coordinate-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 File is titled 'Class X MATH Chapter 7: Coordinate geometry' with NCERT Exercise 7.1 solutions. While labeled as Chapter 7 in the actual curriculum, coordinate geometry content (distance formula, collinearity, geometric properties) aligns with the Straight Lines chapter structure in this course's Maths Ch-5 bucket.",
+      "ts": "2026-07-27T18:58:13"
+    },
+    "d4b0ad7179df0cf3af0e5fdd50b0c9a05dd576f2fab2311440fb8f8b09a0d71b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/122559-NCERT-Solutions-for-Class-10-Maths-chapter-7-Exercise-7.2-Coordinate-Geometry-PDF.pdf",
+      "name": "122559-NCERT-Solutions-for-Class-10-Maths-chapter-7-Exercise-7.2-Coordinate-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 This document covers Class X NCERT Chapter 7: Coordinate Geometry, which includes the section formula and distance formula. For a 9th-grade PCM curriculum, coordinate geometry and the study of lines/points in the coordinate plane aligns with the Straight Lines chapter (Ch-5), which is the foundational chapter for analytic geometry and coordinate system applications.",
+      "ts": "2026-07-27T18:58:17"
+    },
+    "41655f3d4e50b931998db39d67bae1ac1dc92bc77b97ea4b1d4f8cd1c0307a06": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/122819-NCERT-Solutions-for-Class-10-Maths-chapter-8-Exercise-8.1-Introduction-to-Trigonometry-PDF.pdf",
+      "name": "122819-NCERT-Solutions-for-Class-10-Maths-chapter-8-Exercise-8.1-Introduction-to-Trigonometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch4-Trigonometry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Class X MATH Chapter - 8: Introduction To Trigonometry' and contains NCERT Exercise 8.1 solutions with problems on trigonometric ratios (sin, cos, tan, cot, sec). This directly corresponds to the Trigonometry chapter in the provided bucket list.",
+      "ts": "2026-07-27T18:58:21"
+    },
+    "142fb0c0d24167903d31d58251180ab9a7db1048db2e6bc636cdebbbb7bc65de": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/122848-NCERT-Solutions-for-Class-10-Maths-Chapter-6Triangles-PDF.pdf",
+      "name": "122848-NCERT-Solutions-for-Class-10-Maths-Chapter-6Triangles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch6-Set-Theory/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly titled 'CLASS X: MATHS Chapter 6: Triangles' with NCERT Exercise 6.1 and 6.2. Content covers similarity of triangles, basic proportionality theorem, and triangle properties - core Chapter 6 material.",
+      "ts": "2026-07-27T18:58:24"
+    },
+    "ddc266e7529376afbb2a720c269fb3373f32719d2c05751e59807607f617cd41": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/122957-NCERT-Solutions-For-Class-10-Maths-Chapter-8-Exercise-8.2-Introduction-To-Trigonometry-PDF.pdf",
+      "name": "122957-NCERT-Solutions-For-Class-10-Maths-Chapter-8-Exercise-8.2-Introduction-To-Trigonometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch4-Trigonometry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly titled 'Class X : MATH Chapter - 8 : Introduction To Trigonometry' with Exercise 8.2 problems evaluating trigonometric expressions (sin, cos, tan, sec, cosec at standard angles). This is NCERT Class 10 material which maps to 9th-grade Trigonometry fundamentals.",
+      "ts": "2026-07-27T18:58:28"
+    },
+    "efd6ea6b8ba8855c7b42344c41ba308c3915be4e71a0d67c749e06bfb776f4fc": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123121-NCERT-Solutions-For-Class-10-Maths-Chapter-8-Exercise-8.3-Introduction-To-Trigonometry-PDF.pdf",
+      "name": "123121-NCERT-Solutions-For-Class-10-Maths-Chapter-8-Exercise-8.3-Introduction-To-Trigonometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch4-Trigonometry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Class X: MATH Chapter - 8: Introduction To Trigonometry' and contains Exercise 8.3 with trigonometric ratios (sin, cos, tan, sec, cot, cosec). This corresponds to Trigonometry content. Note: The document labels this as Chapter 8 in the NCERT Class X curriculum, but the available bucket is Maths Ch-4 Trigonometry, which covers the same trigonometric content.",
+      "ts": "2026-07-27T18:58:31"
+    },
+    "6a93dbb6605a1140174bb598aeccc503beef83aebff0b2ecbffae81e8e11200c": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123220-NCERT-Solutions-for-Class-10-Maths-Chapter-7-Coordinate-Geometry-PDF.pdf",
+      "name": "123220-NCERT-Solutions-for-Class-10-Maths-Chapter-7-Coordinate-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'CLASS X: MATHS Chapter 7: Coordinate Geometry' with solutions on distance formula between points, collinearity, and geometric properties. Coordinate geometry and the distance formula are foundational topics for understanding straight lines in a coordinate plane, which is the core content of Straight Lines chapter. The problems involve calculating distances between points and determining geometric relationships - skills directly applicable to straight line equations and properties.",
+      "ts": "2026-07-27T18:58:36"
+    },
+    "bd639ddaaf8a97299916f68fbff5af11e26f91a93a03c3569c41d23beb8d845f": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123343-NCERT-Solutions-For-Class-10-Maths-Chapter-9-Exercise-9.1-Some-Applications-of-Trigonometry-PDF.pdf",
+      "name": "123343-NCERT-Solutions-For-Class-10-Maths-Chapter-9-Exercise-9.1-Some-Applications-of-Trigonometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch4-Trigonometry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Chapter - 9 : Some Applications of Trigonometry' from Class X NCERT. It contains detailed solutions for trigonometric problems involving angles of elevation, angles of inclination, and trigonometric ratios (sin, cos, tan, sec). While the source is labeled Chapter 9 in Class X curriculum, the content (trigonometric applications) maps to the Maths Ch-4 Trigonometry bucket in the 9th-grade PCM structure.",
+      "ts": "2026-07-27T18:58:41"
+    },
+    "5869b3f1c57b5152fb693ba042bd6200b28b02662c685f672f59d45ee01d975a": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123514-NCERT-Solutions-for-Class-10-Maths-Chapter-8-Introduction-to-Trigonometry-PDF.pdf",
+      "name": "123514-NCERT-Solutions-for-Class-10-Maths-Chapter-8-Introduction-to-Trigonometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch4-Trigonometry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Chapter 8: Introduction to Trigonometry' from Class X NCERT Maths. It contains foundational trigonometry problems involving sine, cosine, tangent, cotangent, and secant ratios applied to right-angled triangles. This covers core trigonometry concepts including basic trigonometric ratios and their calculations.",
+      "ts": "2026-07-27T18:58:45"
+    },
+    "2c48db2be343a33c383d42577473e8aaa376a15ee1eb4ee44e1bb7d17c162846": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12370-NCERT-Solutions-for-Class-10-Maths-Chapter-10-Exercise-10.1-Circles-PDF.pdf",
+      "name": "12370-NCERT-Solutions-for-Class-10-Maths-Chapter-10-Exercise-10.1-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Class X : MATH Chapter 10 : CIRCLE' and contains NCERT Exercise 10.1 solutions on circles, including questions about tangents, secants, and circle properties. This directly corresponds to Maths Ch-2 | Circles.",
+      "ts": "2026-07-27T18:58:48"
+    },
+    "3c4322af04989b813a5c15cc2915e967c1bc4ed6f5402fa070d2ed8811cf573f": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123810-NCERT-Solutions-for-Class-10-Maths-Chapter-10-Exercise-10.2-Circles-PDF.pdf",
+      "name": "123810-NCERT-Solutions-for-Class-10-Maths-Chapter-10-Exercise-10.2-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT Solutions for Class X Maths Chapter 10 Exercise 10.2 on Circles. The content covers tangent properties, angles, and circle theorems which directly align with the Circles chapter (Ch-2) curriculum.",
+      "ts": "2026-07-27T18:58:51"
+    },
+    "b965bed1e2cf989bbf5c1c11557401620695d453842b378b23f555e177ac590b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123845-NCERT-Solutions-for-Class-10-Maths-Chapter-9-Some-Applications-of-Trigonometry-PDF.pdf",
+      "name": "123845-NCERT-Solutions-for-Class-10-Maths-Chapter-9-Some-Applications-of-Trigonometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch4-Trigonometry/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Chapter 9: Some Applications of Trigonometry' and contains 5 solved problems (Q1-Q5) that apply trigonometric ratios (sin, cos, tan) to real-world scenarios including height of poles, tree heights, slide lengths, tower heights, and kite string lengths. All problems involve using sine, tangent, and secant functions to solve applied geometry problems.",
+      "ts": "2026-07-27T18:58:55"
+    },
+    "967d67cc1865d02341011994bee98b71c428c9d8e4483725709b60fce796235c": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/123934-NCERT-Solutions-for-Class-10-Maths-Chapter-11-Exercise-11.1-Areas-Related-To-Circles-PDF.pdf",
+      "name": "123934-NCERT-Solutions-for-Class-10-Maths-Chapter-11-Exercise-11.1-Areas-Related-To-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is NCERT Class 10 Maths Chapter 11 'Areas Related To Circles' which covers sector areas, segment areas, and arc properties - all core circle geometry concepts. This directly maps to the Maths | Ch-2 | Circles bucket.",
+      "ts": "2026-07-27T18:58:58"
+    },
+    "da0a200e5ef91afa1bb969e96119acaa3dadf9934a75391f01cc263330e1bdbc": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124121-NCERT-Solutions-for-Class-10-Maths-Chapter-10-Circles-PDF.pdf",
+      "name": "124121-NCERT-Solutions-for-Class-10-Maths-Chapter-10-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'CLASS X: MATHS Chapter 10: Circles' and contains detailed questions and solutions about tangents to circles, secants, circle properties, and related geometric theorems. This directly corresponds to the Circles chapter.",
+      "ts": "2026-07-27T18:59:01"
+    },
+    "a0f1a9978802257bd580fbd6acf12883717259927445c78f5861557faaabc0a1": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124150-NCERT-Solutions-for-Class-10-Maths-Chapter-1-Exercise-1.1-Real-Numbers-PDF.pdf",
+      "name": "124150-NCERT-Solutions-for-Class-10-Maths-Chapter-1-Exercise-1.1-Real-Numbers-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:59:06"
+    },
+    "5455ba15c7c804b3f9a11adf5c75aee771f7b33098d4d514a4807d87250e46d3": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124338-NCERT-Solutions-for-Class-10-Maths-Chapter-1-Exercise-1.2-Real-Numbers-PDF.pdf",
+      "name": "124338-NCERT-Solutions-for-Class-10-Maths-Chapter-1-Exercise-1.2-Real-Numbers-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch6-Set-Theory/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document contains Class X NCERT solutions on Real Numbers (Chapter 1 in Class X curriculum). Real Numbers - covering irrationality proofs, coprime integers, and foundational number theory - corresponds most closely to Set Theory (Maths Ch-6) in the 9th-grade PCM course structure, as both deal with fundamental properties and classifications of numbers and sets.",
+      "ts": "2026-07-27T18:59:10"
+    },
+    "ad14b9305038cd9174a11286d773fb5767e97b73e58f59c692edeca8541d3e1f": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124356-NCERT-Solutions-for-Class-10-Maths-Chapter-11-Areas-Related-To-Circles-PDF.pdf",
+      "name": "124356-NCERT-Solutions-for-Class-10-Maths-Chapter-11-Areas-Related-To-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is NCERT Solutions for Class 10 Maths Chapter 11: Areas Related to Circles. This covers calculations of sector areas, segment areas, arc lengths, and related circle geometry - core content of circle properties. While labeled as Chapter 11 in Class 10, this aligns with the 'Circles' chapter bucket in the course structure.",
+      "ts": "2026-07-27T18:59:14"
+    },
+    "5ce0fafb1956035995e2b02e92dcb750989d51702c2a0cb2bdd08aeec6c51896": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124611-NCERT-Solutions-for-Class-10-Maths-Chapter-12-Exercise-12.1-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "124611-NCERT-Solutions-for-Class-10-Maths-Chapter-12-Exercise-12.1-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:59:20"
+    },
+    "6c62f28873aadf3092abcec620463a71d13b83a6de8d50e596d957c158e3dd2e": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124650-NCERT-Solutions-for-Class-10-Maths-Chapter-2-Exercise-2.1-Polynomials-PDF.pdf",
+      "name": "124650-NCERT-Solutions-for-Class-10-Maths-Chapter-2-Exercise-2.1-Polynomials-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:59:26"
+    },
+    "915bc6b7adeb675433464bc63cf704724dd457fed18c12512f45977390fe9600": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124754-NCERT-Solutions-for-Class-10-Maths-Chapter-12-Exercise-12.2-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "124754-NCERT-Solutions-for-Class-10-Maths-Chapter-12-Exercise-12.2-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T18:59:32"
+    },
+    "e0a0f56dcbd578f4b646ca37a8d1842c2f54456148e7fa876e4c13ae85c40a66": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/124941-NCERT-Solutions-for-Class-10-Maths-Chapter-2-Exercise-2.2-Polynomials-PDF.pdf",
+      "name": "124941-NCERT-Solutions-for-Class-10-Maths-Chapter-2-Exercise-2.2-Polynomials-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT Class 10 Maths Chapter 2 on Polynomials. However, the valid bucket list shows 'Maths Ch-1 | Quadratic Equations' which directly covers quadratic polynomials. This exercise (2.2) focuses on finding zeros of quadratic polynomials and verifying relationships between zeros and coefficients\u2014core content of quadratic equations. The material teaches methods for solving quadratics and Vieta's formulas, which are foundational to quadratic equation topics.",
+      "ts": "2026-07-27T18:59:36"
+    },
+    "3d1991c3a988847ae48f11b913a9d1523c46e6d7323720b6b40ea3f6c5fb2ff3": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125147-NCERT-Solutions-for-Class-10-Maths-Chapter-13-Exercise-13.1-Statistics-PDF.pdf",
+      "name": "125147-NCERT-Solutions-for-Class-10-Maths-Chapter-13-Exercise-13.1-Statistics-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Class X : MATH Chapter 13 : Statistics' covering mean calculations, frequency distributions, and statistical methods - core probability/statistics concepts",
+      "ts": "2026-07-27T18:59:39"
+    },
+    "f4442c5a883a024c8990f44676fe988be53a9978047a969d8da55a6aec233d49": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12522-Class-10-Maths-2019-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "name": "12522-Class-10-Maths-2019-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting",
+        "Maths-Ch2-Circles/supporting",
+        "Maths-Ch4-Trigonometry/supporting",
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Question 2 explicitly tests quadratic equations with discriminant conditions and reciprocal roots: x\u00b2 + 4x + k = 0 and 3x\u00b2 - 10x + k = 0",
+      "ts": "2026-07-27T18:59:45"
+    },
+    "151d55e53277c1587cd692cf69d5758d294a3786ce26a5540a967cfa73c26338": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125225-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Exercise-3.1-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "125225-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Exercise-3.1-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Class X : MATH Chapter - 8 : Pair of Linear Equations in Two Variable' and contains NCERT Exercise 3.1 solutions. Pair of Linear Equations in Two Variables is fundamentally about solving linear equations, which relates to understanding straight lines and their intersections. However, this appears to be Class 10 NCERT content, not 9th grade. The closest match in the available 9th-grade buckets is Maths Ch-5 (Straight Lines), as linear equations form the foundation for understanding lines and their properties.",
+      "ts": "2026-07-27T18:59:49"
+    },
+    "dc6831b0ab785b7be3ddeefe5899705e177d6ae9018bdaade041d409f33ac6d0": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12530-Class-10-Maths-2020-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "name": "12530-Class-10-Maths-2020-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Question 1 involves polynomial division - a foundational concept in algebra that precedes quadratic equations. Class X standard curriculum covers polynomials as prerequisite to quadratic equations.",
+      "ts": "2026-07-27T18:59:52"
+    },
+    "cc890718e24d95376051e5251e00f8a0b8b5f7b78433b0efb519429a0e2f0ced": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125313-NCERT-Solutions-for-Class-10-Maths-Chapter-13-Exercise-13.2-Statistics-PDF.pdf",
+      "name": "125313-NCERT-Solutions-for-Class-10-Maths-Chapter-13-Exercise-13.2-Statistics-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is Class X Maths Chapter 13: Statistics from NCERT, which covers frequency distributions, mode, mean, and central tendency measures. While Chapter 13 (Statistics) is not in the 9th-grade PCM curriculum buckets provided, Probability (Ch-8) is the closest applicable match as statistics and probability are closely related topics. However, this document specifically addresses grouped data analysis and measures of central tendency rather than pure probability.",
+      "ts": "2026-07-27T18:59:58"
+    },
+    "ed51a633efe0904630a8cba04cbd2ab8af1b3648189b9e7b11632294e2729841": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12543-Class-10-Maths-2022-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "name": "12543-Class-10-Maths-2022-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting",
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Question 3(a) explicitly asks about finding m for a quadratic equation with equal roots. Question 3(b) asks to solve a quadratic equation \u221a3 x\u00b2 + 10x + 7\u221a3 = 0. These are direct applications of quadratic equations concepts.",
+      "ts": "2026-07-27T19:00:02"
+    },
+    "1f92a6a58fb1370e6a6e9508007c0a702456b0917ebab6edcbc73a71c7d79241": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125443-NCERT-Solutions-for-Class-10-Maths-Chapter-13-Exercise-13.3-Statistics-PDF.pdf",
+      "name": "125443-NCERT-Solutions-for-Class-10-Maths-Chapter-13-Exercise-13.3-Statistics-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:00:09"
+    },
+    "89d38086672ed316f4bcaedcd94965d70248bc7f9ff3574e46b575f57c9ebd9b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125529-Class-10-Maths-2023-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "name": "125529-Class-10-Maths-2023-Previous-Year-Question-Papers-with-Solutions.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:00:15"
+    },
+    "f1d9eb1ae269bcf142ab1dcd881ec1fe7139b9d9c85aace60fc26a5d324ccd1b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125551-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Exercise-3.2-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "125551-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Exercise-3.2-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document contains NCERT solutions for 'Pair of Linear Equations in Two Variables' which is Class 10 content. However, this exact topic (linear equations in two variables) is not listed in the 9th-grade Maths chapters provided. The closest match is Quadratic Equations (Ch-1), as both involve solving equations, though the fit is imperfect.",
+      "ts": "2026-07-27T19:00:18"
+    },
+    "a3e02d08e563e778bea155008019e53e6220381f841fa445ceb2213a67c4eb48": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125645-NCERT-Solutions-for-Class-10-Maths-Chapter-14-Exercise-14.1-Probability-PDF.pdf",
+      "name": "125645-NCERT-Solutions-for-Class-10-Maths-Chapter-14-Exercise-14.1-Probability-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Class X : MATH Chapter - 14 : Probability' and contains NCERT Exercise 14.1 solutions covering fundamental probability concepts including equally likely outcomes, probability ranges (0 to 1), complementary events, and basic probability calculations.",
+      "ts": "2026-07-27T19:00:22"
+    },
+    "e02a585b020ad11d1971f45f07acb32abfbf4637aa96d8073c2070992ae77ed0": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/125750-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Exercise-3.3-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "125750-NCERT-Solutions-for-Class-10-Maths-Chapter-3-Exercise-3.3-Pair-of-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers solving pair of linear equations using elimination and substitution methods. While titled 'Chapter 8' in the Class X NCERT context, linear equations (particularly quadratic and polynomial equations) are foundational algebra topics. The methods and problem types shown are prerequisite skills for quadratic equations.",
+      "ts": "2026-07-27T19:00:25"
+    },
+    "06737978667235cd2c3a441e2d7d88859745ba6b756744f96c9898ef3062e769": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/12854-NCERT-Solutions-for-Class-10-Maths-Chapter-2-Polynomials-PDF.pdf",
+      "name": "12854-NCERT-Solutions-for-Class-10-Maths-Chapter-2-Polynomials-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document focuses on finding zeros of quadratic polynomials and verifying relationships between zeros and coefficients. This is core content from Class 10 Maths Chapter 2 (Polynomials in NCERT). However, since Chapter 2 (Polynomials) is not in the provided valid buckets for 9th-grade curriculum, the closest match is Maths Ch-1 (Quadratic Equations), as quadratic polynomial zeros are fundamental to solving quadratic equations.",
+      "ts": "2026-07-27T19:00:29"
+    },
+    "fb6ba1d9a26d8de6d7a4c37511a638ab9451c30306871339267228dd0dc2d27b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/14431-NCERT-Solutions-for-Class-10-Maths-Chapter-12-Surface-Areas-and-Volumes -PDF.pdf",
+      "name": "14431-NCERT-Solutions-for-Class-10-Maths-Chapter-12-Surface-Areas-and-Volumes -PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:00:34"
+    },
+    "d07381fb4cb7bd7c5b722e147cc7e31335e11188dcde3e379dcbb49490c2f286": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/144641-NCERT-Solutions-for-Class-10-Maths-Chapter 13-Statistics-PDF.pdf",
+      "name": "144641-NCERT-Solutions-for-Class-10-Maths-Chapter 13-Statistics-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers Class X Maths Chapter 13: Statistics, which focuses on finding mean values of frequency distributions. While this is a 10th-grade curriculum document and the requested buckets are for 9th-grade PCM, Statistics (particularly mean calculations and frequency distributions) conceptually aligns with probability foundations and data analysis concepts typically covered in Maths Ch-8 (Probability) at the 9th-grade level, as statistics and probability are closely related.",
+      "ts": "2026-07-27T19:00:38"
+    },
+    "595a479709aefdd7faefc6d6a47cbcc9c8cae41fc7fc739bb0013a4e7ed74314": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/144957-NCERT-Solutions-for-Class-10-Maths-Chapter-14-Probability-PDF.pdf",
+      "name": "144957-NCERT-Solutions-for-Class-10-Maths-Chapter-14-Probability-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly titled 'CLASS X: MATHS Chapter 14: Probability' with questions and solutions on probability fundamentals (equally likely outcomes, probability rules, basic probability calculations with favorable and possible outcomes)",
+      "ts": "2026-07-27T19:00:43"
+    },
+    "d3f5c98ac1a2e60b3554fa3502e192c20045d2bcb8dbcb1b2db24e03b309287b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/145351-NCERT-Solutions-Class-10-Science-Chapter-1-Chemical-Reaction-And-Equation-PDF.pdf",
+      "name": "145351-NCERT-Solutions-Class-10-Science-Chapter-1-Chemical-Reaction-And-Equation-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is explicitly titled 'Chapter 1: Chemical Reactions and Equations' from Class X NCERT Science. It covers chemical equations, balancing equations, types of chemical reactions (synthesis, displacement, double displacement), oxidation-reduction reactions, and chemical transformations. This is foundational chemistry content. However, the valid bucket list provided contains only 'Chemistry Ch-1 Gaseous State', which does not match the actual content of this file about chemical reactions and equations. The filename indicates Chapter 1 Chemistry but the content does not align with 'Gaseous State' topic.",
+      "ts": "2026-07-27T19:00:46"
+    },
+    "14faef56b8fcd1c1a0b1ae715745f315a3c2e61ca9d999f22778263bcf0b1723": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/145920-NCERT-Solutions-for-Class-10-Science -Chapter-2-Acids,Bases-and-Salts-PDF.pdf",
+      "name": "145920-NCERT-Solutions-for-Class-10-Science -Chapter-2-Acids,Bases-and-Salts-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch3-Ionic-Equilibrium/supporting"
+      ],
+      "route": "llm-haiku \u2014 This is NCERT Class 10 Science Chapter 2 'Acids, Bases and Salts'. The content covers properties of acids and bases, pH, ionization, conductivity, and neutralization - all core topics of Ionic Equilibrium. While the document is labeled for Class 10 (not 9th grade), the content directly aligns with Chemistry Ch-3 Ionic Equilibrium which covers acid-base behavior, H+ and OH- ion concentrations, pH scale, and related equilibrium concepts.",
+      "ts": "2026-07-27T19:00:50"
+    },
+    "2c42e153c263e7f897650feca4e393b870591b57c05f8fac62b644852d2623a2": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/152321-NCERT-Solutions-Class-10-Science-Chapter-4-Carbon-And-Its-Compounds-PDF.pdf",
+      "name": "152321-NCERT-Solutions-Class-10-Science-Chapter-4-Carbon-And-Its-Compounds-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch4-Organic-Chemistry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document contains NCERT solutions for Class X Science Chapter 4: Carbon and Its Compounds. Covers electron dot structures, structural isomers of carbon compounds (pentane, cyclopentane), properties of carbon (catenation, tetravalency), and naming conventions for organic compounds like ethanoic acid, bromopentane, butanone, and hexanal. This is core organic chemistry content.",
+      "ts": "2026-07-27T19:00:54"
+    },
+    "56ae538fddf5f73fdb7572d3445fe8ff6de987c7a6584cf51ce860a445ddf4ce": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/152648-NCERT-Solutions-Class-10-Science-Chapter-5-Life-Processes-PDF.pdf",
+      "name": "152648-NCERT-Solutions-Class-10-Science-Chapter-5-Life-Processes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:01:01"
+    },
+    "7f1779001fa9530e28e048e992dc16e74dff37db32e0cc845e8718de376c7447": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/153859-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.1-Number-System -PDF.pdf",
+      "name": "153859-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.1-Number-System -PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:01:06"
+    },
+    "687fc23f4d5afe3893d377b6a9e233339d00e461254694a8f33d4a7040cee8e4": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/154157-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.2-Number-System-PDF.pdf",
+      "name": "154157-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.2-Number-System-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch6-Set-Theory/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers Chapter 1: Number System from Class IX NCERT Maths, which deals with real numbers, irrational numbers, and number line representation. While labeled as 'Chapter 1' in the source material, this foundational content on sets of numbers (rationals, irrationals, reals) aligns most closely with Set Theory principles in the provided bucket structure.",
+      "ts": "2026-07-27T19:01:10"
+    },
+    "560f2baf1dc8a7ea475bc5a3f79786bd43d45b27591769e332e874f9e213c916": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/154358-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.3-Number-Systems-PDF.pdf",
+      "name": "154358-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.3-Number-Systems-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:01:15"
+    },
+    "673e5a4bbeeaf9efae7c20502db924baf0276053970e4659884a6214cd6c75fd": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/154525-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.4-Number-Systems-PDF.pdf",
+      "name": "154525-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.4-Number-Systems-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:01:20"
+    },
+    "e9427f39b57f0b506df7c3f3c895243e2d693a10056284969fa5ec5feb696da7": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/154824-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.5-Number-Systems-PDF.pdf",
+      "name": "154824-NCERT-Solutions-for-class-9-Maths-Chapter-1-Exercise-1.5-Number-Systems-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly titled 'CLASS IX: MATHS Chapter 1: Number System' with NCERT Exercise 1.5 solutions on exponents and radicals - foundational algebraic concepts",
+      "ts": "2026-07-27T19:01:23"
+    },
+    "c203fe256df2efc84032143893689376119c3b619e910be70537407b42bf4ba5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/15511-NCERT-Solutions-Class-10-Science-Chapter-3-Metals-&-Non-metals-PDF.pdf",
+      "name": "15511-NCERT-Solutions-Class-10-Science-Chapter-3-Metals-&-Non-metals-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:01:28"
+    },
+    "f5aa2886c0c2420f24411c0fcc17e6aed5df00650b3d5f746b87ccf744a86f8f": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/155350-NCERT-Solutions-for-class-9-Maths-Chapter-2-Exercise-2.1-Polynomials-PDF.pdf",
+      "name": "155350-NCERT-Solutions-for-class-9-Maths-Chapter-2-Exercise-2.1-Polynomials-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:01:34"
+    },
+    "4d8e13389f3a4ef5c8b08a69c3226f3ddf30daa3032a965e9abbcba60579db19": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/15559-NCERT-Solutions-for-class-9-Maths-Chapter-2-Exercise-2.2-Polynomials-PDF.pdf",
+      "name": "15559-NCERT-Solutions-for-class-9-Maths-Chapter-2-Exercise-2.2-Polynomials-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:01:41"
+    },
+    "336ed7737a84af01370b548708a8c6ca2887cd39ebc9880db15510bdd8ff3844": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/155657-NCERT-Solutions-For-Class-9-Maths-Chapter-2-Exercise-2.3-Polynomials-PDF.pdf",
+      "name": "155657-NCERT-Solutions-For-Class-9-Maths-Chapter-2-Exercise-2.3-Polynomials-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly states 'CLASS IX: MATHS Chapter 2: Polynomials' with Exercise 2.3 from NCERT Books. Content covers factor theorem and polynomial factorization, which are core concepts in polynomial chapters. However, the valid bucket list shows Maths Ch-2 as 'Circles', which does not match the actual content about polynomials. This appears to be a mismatch between the document content and available routing buckets.",
+      "ts": "2026-07-27T19:01:45"
+    },
+    "4d7aad2f45e7e8a7f26cc55fd08295c41f1c50346e48e425c2bf34f71ba641bd": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/15597-NCERT-Solutions-For-Class-9-Maths-Chapter-2-Exercise-2.4-Polynomials-PDF.pdf",
+      "name": "15597-NCERT-Solutions-For-Class-9-Maths-Chapter-2-Exercise-2.4-Polynomials-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:01:52"
+    },
+    "b92049751a20021471c49d0e47e8c930600eff8649f7787e94b7fcbb72f86408": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/16118-NCERT-Solutions-for-class-9-Maths-Chapter-3-Exercise-3.1-Coordinate-Geometry-PDF.pdf",
+      "name": "16118-NCERT-Solutions-for-class-9-Maths-Chapter-3-Exercise-3.1-Coordinate-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch3-Permutations-and-Combination/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'NCERT Solutions for class 9 Maths Chapter 3: Co-ordinate Geometry'. However, the content shown (Exercise 3.1) covers coordinate systems and positioning using ordered pairs (a,b), which is foundational coordinate geometry but does not align with the 'Permutations and Combination' chapter in the provided buckets. This appears to be coordinate geometry content that may not fit the exact curriculum buckets provided.",
+      "ts": "2026-07-27T19:01:55"
+    },
+    "41019bb7ca3e2db5746440a188b3d2180ed304c2b66cb063430c6c299d800e73": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/161230-NCERT-Solutions-For-Class-9-Maths-Chapter-4-Exercise-4.1-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "161230-NCERT-Solutions-For-Class-9-Maths-Chapter-4-Exercise-4.1-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Chapter 4: Linear in Equations' from Class IX Maths. It covers linear equations in two variables (ax + by + c = 0), which is foundational content for straight lines and coordinate geometry. While the filename indicates Chapter 4, the content on expressing and converting linear equations is core material supporting the Straight Lines chapter.",
+      "ts": "2026-07-27T19:01:58"
+    },
+    "33472fd0055c96ac946514bc9bba076dc5305b162d755deaa1e0e9c03473b8e5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/161410-NCERT-Solutions-For-Class-9-Maths-Chapter-4-Exercise-4.2-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "name": "161410-NCERT-Solutions-For-Class-9-Maths-Chapter-4-Exercise-4.2-Linear-Equations-in-Two-Variables-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers linear equations in two variables (from Class IX NCERT Chapter 4: Linear in Equations). This content deals with graphical representation of linear equations and straight lines, which aligns with the Maths | Ch-5 | Straight Lines curriculum.",
+      "ts": "2026-07-27T19:02:02"
+    },
+    "f54c72652129b959994f4665c91fd6f970404c0c517c768df1d32488fc557a0e": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/161819-NCERT-Solutions-For-Class-9-Maths-Chapter-6-Exercise-6.1-Lines-and-Angles-PDF.pdf",
+      "name": "161819-NCERT-Solutions-For-Class-9-Maths-Chapter-6-Exercise-6.1-Lines-and-Angles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document contains NCERT Solutions for Class 9 Maths Chapter 6 'Lines and Angles', which deals with properties of lines, angles formed by intersecting lines, linear pairs, vertically opposite angles, and angle relationships. While the document title says Chapter 6, the content about lines and angles aligns with foundational geometry that supports straight lines (Maths Ch-5).",
+      "ts": "2026-07-27T19:02:08"
+    },
+    "3f4f45079d89a5ed06d9bbe5d30478e96057880d78fddd7281332af1caa4255b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/161940-NCERT-Solutions-Class-10-Science-Chapter-6-Control-and-Coordination-PDF.pdf",
+      "name": "161940-NCERT-Solutions-Class-10-Science-Chapter-6-Control-and-Coordination-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:02:13"
+    },
+    "484959ba621214af56acba453f3613af9a97fa9169ee68e773d144ede9628f5a": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/161948-NCERT-Solutions-For-Class-9-Maths-Chapter-6-Exercise-6.2-Lines-and-Angles-PDF.pdf",
+      "name": "161948-NCERT-Solutions-For-Class-9-Maths-Chapter-6-Exercise-6.2-Lines-and-Angles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'CLASS IX: MATHS Chapter 6: Lines And Angles' and contains NCERT Solutions for Exercise 6.2. However, the actual content deals with parallel lines, transversals, alternate angles, corresponding angles, and geometric properties of lines - which are foundational topics typically covered in Straight Lines chapter. The filename indicates Chapter 6 but the closest matching bucket is Maths Ch-5 Straight Lines.",
+      "ts": "2026-07-27T19:02:17"
+    },
+    "c3eed677f454278ee72fb1445539cfc649c9372dda95800fb343ff7470ea8b0a": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/162342-NCERT-Solutions-For-Class-9-Maths-Chapter-7-Exercise-7.1-Triangles-PDF.pdf",
+      "name": "162342-NCERT-Solutions-For-Class-9-Maths-Chapter-7-Exercise-7.1-Triangles-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:02:24"
+    },
+    "51620136204feb7c7fc2b3734069ca49026207fa90b08e301ad8f60aa73b4eb2": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/162614-NCERT-Solutions-For-Class-9-Maths-Chapter-7-Exercise-7.2-Triangles-PDF.pdf",
+      "name": "162614-NCERT-Solutions-For-Class-9-Maths-Chapter-7-Exercise-7.2-Triangles-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:02:30"
+    },
+    "7e58cf6a74c4282f327c0c0dfd4cdbd5e40adbc1017c36f958548c7beb35f063": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/162839-NCERT-Solutions-for-Class-9-Maths-Chapter-7-Exercise-7.3-Triangles-PDF.pdf",
+      "name": "162839-NCERT-Solutions-for-Class-9-Maths-Chapter-7-Exercise-7.3-Triangles-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:02:36"
+    },
+    "f9ddc42104f259fae27bb6be92ce8c6917d0a63eaa67e551426fd20ac55d23bb": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/163232-NCERT-Solutions-For-Class-9-Maths-Chapter-8-Exercise-8.1-Quadrilaterals-PDF.pdf",
+      "name": "163232-NCERT-Solutions-For-Class-9-Maths-Chapter-8-Exercise-8.1-Quadrilaterals-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly states 'CLASS IX: MATHS Chapter 8: Quadrilaterals' and contains NCERT Exercise 8.1 solutions covering properties of quadrilaterals including parallelograms, rectangles, squares, and rhombuses. However, the valid bucket is 'Maths | Ch-8 | Probability' which does not match the document content about quadrilaterals. This document does not fit any of the provided valid Maths chapter buckets.",
+      "ts": "2026-07-27T19:02:40"
+    },
+    "329f7ece1427c62b613844b49a62c72e9fb87b687298a834e5efd5a7b940c515": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/16332-NCERT-Solutions-Class-10-Science-Chapter-7-How-Do-Organisms-Reproduce-PDF.pdf",
+      "name": "16332-NCERT-Solutions-Class-10-Science-Chapter-7-How-Do-Organisms-Reproduce-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:02:47"
+    },
+    "3e51293264ff9fdd2a1fd64d754dbc353f822bae7d1577734ba62041ba05976b": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/163343-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Exercise-4.1-Quadratic-Equations-PDF.pdf",
+      "name": "163343-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Exercise-4.1-Quadratic-Equations-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Class X : MATH Chapter - 4 : Quadratic Equation' and contains NCERT Exercise 4.1 solutions on checking quadratic equations and representing situations as quadratic equations. This directly aligns with the 'Maths | Ch-1 | Quadratic Equations' bucket.",
+      "ts": "2026-07-27T19:02:50"
+    },
+    "4988974be49be916ec749278616e169d1560008f976437904b3560eabf0f3a65": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/163449-NCERT-Solutions-For-Class-9-Maths-Chapter-8-Exercise-8.2-Quadrilaterals-PDF.pdf",
+      "name": "163449-NCERT-Solutions-For-Class-9-Maths-Chapter-8-Exercise-8.2-Quadrilaterals-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'CLASS IX: MATHS Chapter 8: Quadrilaterals' and contains NCERT Exercise 8.2 solutions focusing on properties of quadrilaterals (parallelograms, rectangles, rhombuses). However, the valid bucket available is 'Maths | Ch-8 | Probability', which does not match the actual content about geometric quadrilaterals. The document does not fit any of the available Maths chapters in the provided bucket list.",
+      "ts": "2026-07-27T19:02:53"
+    },
+    "0e75ed68a2d3128388e68b515c84dc90dedb32e7bd559d3d3a871a7896f54fac": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/163640-NCERT-Solutions-For-Class-9-Maths-Chapter-9-Exercise-9.1-Circles-PDF.pdf",
+      "name": "163640-NCERT-Solutions-For-Class-9-Maths-Chapter-9-Exercise-9.1-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document explicitly covers Class IX Maths Chapter 9: Circles from NCERT, discussing congruent circles, chords, and angles subtended at centers - core topics of circle geometry",
+      "ts": "2026-07-27T19:02:57"
+    },
+    "a4f67fabeb785269c115f6f6f03d103a6e660043a7b77b5cbd6c0a11333e07a0": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/16384-NCERT-Solutions-For-Class-9-Maths-Chapter-9-Exercise-9.2-Circles-PDF.pdf",
+      "name": "16384-NCERT-Solutions-For-Class-9-Maths-Chapter-9-Exercise-9.2-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document clearly titled 'CLASS IX: MATHS Chapter 9: Circles' with Exercise 9.2 covering circle properties including intersecting chords, common chords, and applications. This is Class IX (9th grade) Circles content.",
+      "ts": "2026-07-27T19:03:01"
+    },
+    "c4c4d3cedb3965acb41e5f0335db64c4fb25e37106259afa1ff88fe697272821": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/16419-NCERT-Solutions-For-Class-9-Maths-Chapter-3-Exercise-3.2-Coordinate-Geometry-PDF.pdf",
+      "name": "16419-NCERT-Solutions-For-Class-9-Maths-Chapter-3-Exercise-3.2-Coordinate-Geometry-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is NCERT Class 9 Maths Chapter 3 'Co-ordinate Geometry' which covers coordinate systems, axes, quadrants, and plotting points on the Cartesian plane. This foundational coordinate geometry content is directly applicable to understanding and graphing straight lines (equations, slopes, intercepts), making it a supporting resource for Maths Ch-5 (Straight Lines).",
+      "ts": "2026-07-27T19:03:04"
+    },
+    "d6cb1df935fbd4e0314906f99b5449968986519194be8344f3196b6b91ddb5ca": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/164341-NCERT-Solutions-For-Class-9-Maths-Chapter-9-Exercise-9.3-Circles-PDF.pdf",
+      "name": "164341-NCERT-Solutions-For-Class-9-Maths-Chapter-9-Exercise-9.3-Circles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'CLASS IX: MATHS Chapter 9: Circles' and contains NCERT Solutions for Exercise 9.3 on Circles. All five questions (Q1-Q5) deal with properties of circles, angles subtended by chords/arcs at the center vs circumference, cyclic quadrilaterals, and angle relationships in circles.",
+      "ts": "2026-07-27T19:03:07"
+    },
+    "a3c67a1c75f9751079ae4badbe4cedb23f2da6fe384f2520d85c3acf3eda6012": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/165016-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Exercise-4.2-Quadratic-Equations-PDF.pdf",
+      "name": "165016-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Exercise-4.2-Quadratic-Equations-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Class X: MATH Chapter - 4: Quadratic Equation' and contains Exercise 4.2 from NCERT. It covers finding roots of quadratic equations by factorization, which is core content for the Quadratic Equations chapter. The filename also confirms this is about Quadratic Equations.",
+      "ts": "2026-07-27T19:03:11"
+    },
+    "0cc7f73acd2b39af83e03ec15ea54d2448234e55e2d6c5cc44dc72a5d72dd554": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/165515-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Exercise-4.3-Quadratic-Equations-PDF.pdf",
+      "name": "165515-NCERT-Solutions-for-Class-10-Maths-Chapter-4-Exercise-4.3-Quadratic-Equations-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Class X: MATH Chapter - 4: Quadratic Equation' and contains NCERT Solutions for Exercise 4.3 focused entirely on quadratic equations, including finding nature of roots, discriminant analysis, and solving quadratic problems.",
+      "ts": "2026-07-27T19:03:14"
+    },
+    "8d2d6353f67bc73c284fffa479727d2d638cba59cb2b12e5aa2cbd188762d3cf": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/165640-NCERT-Solutions-Class-10-Science-Chapter-8-Heredity-PDF.pdf",
+      "name": "165640-NCERT-Solutions-Class-10-Science-Chapter-8-Heredity-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:03:20"
+    },
+    "b2205b5b2a25aa03b38dd745e0b9cf95a5c86e2a874bfcf0f39b4a7315b85db8": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171054-NCERT-Solutions-Class-9-Science-Chapter-3-Atoms-and-Molecules-PDF.pdf",
+      "name": "171054-NCERT-Solutions-Class-9-Science-Chapter-3-Atoms-and-Molecules-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers fundamental atomic theory concepts including Dalton's postulates, atomic mass units, law of conservation of mass, and law of definite proportions - core foundational topics that align with introductory Chemistry. While titled 'Atoms and Molecules' from Class IX NCERT, the content (conservation of mass, atomic theory postulates) bridges to higher chemistry fundamentals.",
+      "ts": "2026-07-27T19:03:31"
+    },
+    "cfc7630217e78b935e5fb70bdd6bd8a56d21c99d36748b37c5a83c14a94101c5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171117-Polynomials-Class-10-Notes-CBSE-Maths-Chapter-2-PDF.pdf",
+      "name": "171117-Polynomials-Class-10-Notes-CBSE-Maths-Chapter-2-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers polynomials, which form foundational concepts for Quadratic Equations. The document explicitly discusses quadratic polynomials (degree 2), zeros of polynomials, and graphical analysis of ax\u00b2 + bx + c equations, which are core prerequisite topics for solving quadratic equations.",
+      "ts": "2026-07-27T19:03:35"
+    },
+    "448624192eea285f9cb3ce54c394389862eb24d764550d6d798b9a3742fad6e8": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171136-Pair-of-Linear-Equations-in-Two-Variables-Class-10-Maths-Chapter-3-PDF.pdf",
+      "name": "171136-Pair-of-Linear-Equations-in-Two-Variables-Class-10-Maths-Chapter-3-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers pair of linear equations in two variables, including graphical methods, substitution, elimination, and cross multiplication methods. These are core topics in the study of straight lines and linear relationships in coordinate geometry.",
+      "ts": "2026-07-27T19:03:38"
+    },
+    "b3c5d0ee188fdf299eebf6cce855d3facce0295adea03637c0bedcdf10baa5a5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171234-Arithmetic-Progressions-Class-10 -Maths-Chapter-5-PDF.pdf",
+      "name": "171234-Arithmetic-Progressions-Class-10 -Maths-Chapter-5-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:03:48"
+    },
+    "fc96a3023a31d4f0813e5b36d70af0364445c4f3cee87af92606e6a3d41d9700": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171256-Triangles-Class-10-Maths-Chapter-6-PDF.pdf",
+      "name": "171256-Triangles-Class-10-Maths-Chapter-6-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:03:54"
+    },
+    "21cd8ac5a004b6ad59092a6795b296062e943ef762ad3310e9b55ee9bc9a5b65": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17128-Quadratic-Equations-Class-10-Maths-Chapter-4-PDF.pdf",
+      "name": "17128-Quadratic-Equations-Class-10-Maths-Chapter-4-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Chapter 4 - Quadratic Equation' from Class 10 Maths. It contains comprehensive revision notes covering definitions, standard forms, roots, and three methods of solving quadratic equations (factorization, completing the square, and quadratic formula). This maps to 'Maths | Ch-1 | Quadratic Equations' in the 9th-grade PCM course curriculum.",
+      "ts": "2026-07-27T19:04:01"
+    },
+    "259af2128a13efc39f2eedd2d5332aa30c72648ed30926f8399b076fe3d2acc2": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171334-Coordinate-Geometry-Class-10-Maths-Chapter-7-PDF.pdf",
+      "name": "171334-Coordinate-Geometry-Class-10-Maths-Chapter-7-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document covers coordinate geometry fundamentals including distance formula, section formula, and mid-point formula. These are foundational tools for analyzing straight lines in the coordinate plane, which is the core topic of Maths Ch-5 (Straight Lines).",
+      "ts": "2026-07-27T19:04:04"
+    },
+    "5b7766d33fbe88f9de4735f3813f5c209072a761babae4c48f18b375cd3e2379": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171640-NCERT-Solutions-Class-10-Science-Chapter-9-Light-Reflection-and-Refraction-PDF.pdf",
+      "name": "171640-NCERT-Solutions-Class-10-Science-Chapter-9-Light-Reflection-and-Refraction-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch5-Optics/supporting"
+      ],
+      "route": "llm-haiku \u2014 File contains NCERT Class 10 Science Chapter 9 content on 'Light - Reflection and Refraction', which covers optics topics including concave/convex mirrors, focal length, magnification, refraction, refractive index, and optical density. This maps directly to Physics Ch-5 Optics for 9th-grade PCM curriculum.",
+      "ts": "2026-07-27T19:04:07"
+    },
+    "58b99b0420e0b829e6a99a5da95d214d5a5f6a832dcb4c14e8eba410a5a302d2": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171940-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.2-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "171940-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.2-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:04:13"
+    },
+    "92840c3a1a44da0bb13ff398eba1081ffb3262d46ae27a929b37562f5910b672": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/171942-NCERT-Solutions-Class-10-Science -Chapter-10-The-Human-Eye-and-Colourful-World-PDF.pdf",
+      "name": "171942-NCERT-Solutions-Class-10-Science -Chapter-10-The-Human-Eye-and-Colourful-World-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch5-Optics/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers optics topics including accommodation of eye lens, focal length, lens power, myopia correction with concave/convex lenses, near point, far point, and image formation on retina. These are core optics concepts from Physics Chapter 5.",
+      "ts": "2026-07-27T19:04:16"
+    },
+    "1235339d6d1f3ca301cdc535bd2bafab14b2546b32b18f53789372c685cfdb81": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/172232-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.3-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "172232-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.3-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:04:22"
+    },
+    "3b0c7739eea336a346c4872a03ee5c2d615598ff614e0a19a0e34d43386dec24": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/172441-NCERT-Solutions-Class-9-Science-Chapter-4-Structure-Of-The-Atom-PDF.pdf",
+      "name": "172441-NCERT-Solutions-Class-9-Science-Chapter-4-Structure-Of-The-Atom-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch4-Organic-Chemistry/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'CLASS IX: SCIENCE Chapter 4: Structure Of The Atom' and contains NCERT solutions covering atomic structure, subatomic particles (protons, electrons, neutrons), atomic models (Thomson, Rutherford, Bohr), electron distribution in atoms, and fundamental chemistry concepts about atomic composition. This maps to general atomic structure foundational content, closest to organic/inorganic chemistry fundamentals.",
+      "ts": "2026-07-27T19:04:26"
+    },
+    "19893d2508b27c66ec2d8db76609571452e0d1a42463a430ec906d99bcc686eb": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/172447-NCERT-Solutions-Class-10-Science-Chapter-11-Electricity-PDF.pdf",
+      "name": "172447-NCERT-Solutions-Class-10-Science-Chapter-11-Electricity-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch8-Current/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT Class 10 Science Chapter 11: Electricity - contains detailed Q&A on electric circuits, current (SI unit ampere), potential difference, resistance factors, and series circuit problems with ammeter/voltmeter measurements. This directly aligns with Current Electricity topic in Physics Ch-8.",
+      "ts": "2026-07-27T19:04:30"
+    },
+    "7f52ffaf457b0fd70b634ece2e9bccdd4a6e686e153b814096350418e5f3d985": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/172741-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.4-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "172741-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.4-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:04:37"
+    },
+    "21efd5db8ff7e6aa86721df1f577bc352e1412be35181c7c39e4816b41c9f912": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17342-NCERT-Solutions-Class-9-Science-Chapter-5-The-Fundamental-Unit-of-Life-PDF.pdf",
+      "name": "17342-NCERT-Solutions-Class-9-Science-Chapter-5-The-Fundamental-Unit-of-Life-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:04:41"
+    },
+    "5f6e48b4efbc5c1085eeb974e221c48ed01ff07ec0cbb366338da15ebb348873": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/173726-NCERT-Solutions-Class-9-Science-Chapter-6-Tissues-PDF.pdf",
+      "name": "173726-NCERT-Solutions-Class-9-Science-Chapter-6-Tissues-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:04:47"
+    },
+    "162df000c1194a11467ca73c1a20a0f5640844fedd436e5eb025714d7cae6992": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/173754-NCERT-Solutions-Class-10-Science-Chapter-12-Magnetic-Effects-Of-Electric-Current-PDF.pdf",
+      "name": "173754-NCERT-Solutions-Class-10-Science-Chapter-12-Magnetic-Effects-Of-Electric-Current-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch8-Current/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT Class 10 Science Chapter 12 'Magnetic Effects of Electric Current'. This covers magnetic fields, electromagnets, solenoids, forces on charged particles in magnetic fields, and electric safety - all core topics of electromagnetism corresponding to Physics Ch-8 (Current). The content focuses on current-carrying conductors and their magnetic effects.",
+      "ts": "2026-07-27T19:04:52"
+    },
+    "90d459852926817c5ed2e4bca9d50ad5a0290d33e2cb553092ec8ffaf620f543": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/173917-NCERT-Solutions-Class-9-Science-Chapter-7-Motion-PDF.pdf",
+      "name": "173917-NCERT-Solutions-Class-9-Science-Chapter-7-Motion-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch1-Force-and-Laws-of-Motion/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers motion concepts including displacement, distance, speed, velocity, and acceleration - foundational topics for Force & Laws of Motion chapter. However, the document explicitly states 'CLASS IX: SCIENCE Chapter 7: Motion' which suggests this may be from a broader motion chapter that precedes force and laws of motion.",
+      "ts": "2026-07-27T19:04:55"
+    },
+    "18779f4449994cb1c50d16dac6f8f608890060c891881af440eb3f8fc10f451a": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17409-NCERT-Solutions-Class-10-Science -Chapter-13-Our-Environment-PDF.pdf",
+      "name": "17409-NCERT-Solutions-Class-10-Science -Chapter-13-Our-Environment-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:05:01"
+    },
+    "634fda017e624b67ee0078d6863d4054745b15507f52f23e0f113af296db9eae": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17418-NCERT-Solutions-Class-9-Science-Chapter-8-Force-and-Laws-of-Motion-PDF.pdf",
+      "name": "17418-NCERT-Solutions-Class-9-Science-Chapter-8-Force-and-Laws-of-Motion-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch1-Force-and-Laws-of-Motion/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Chapter 8: Forces and Laws of Motion' from Class IX NCERT. It covers inertia, Newton's laws of motion, force, acceleration, and mass - all core concepts in Force & Laws of Motion chapter. Questions Q1-Q7 directly address inertia, velocity changes, net force, and F=ma calculations.",
+      "ts": "2026-07-27T19:05:05"
+    },
+    "072a141882557ec0f38142d652f2787a944c37daf502597c35ac4b9d72742288": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/174239-NCERT-Solutions-Class-9-Science-Chapter-9-Gravitation-PDF.pdf",
+      "name": "174239-NCERT-Solutions-Class-9-Science-Chapter-9-Gravitation-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch6-Fluids/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers gravitation, buoyancy, and fluid mechanics including density, floating/sinking behavior, buoyant force, and pressure\u2014all core topics in the Fluids chapter. These concepts directly support understanding fluid mechanics principles.",
+      "ts": "2026-07-27T19:05:08"
+    },
+    "a974f327199142c4112dd53565ec8454e08845d8b0bfa59aa150b0e25b4715fc": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17426-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.1-Surface-Areas-and-Volumes-PDF.pdf",
+      "name": "17426-NCERT-Solutions-for-Class-9-Maths-Chapter-11-Exercise-11.1-Surface-Areas-and-Volumes-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:05:13"
+    },
+    "92f1fda03b5c470d475235eb55b9dcdc88920f78aa041537b7e567c4c454eb47": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/174429-NCERT-Solutions-Class-9-Science-Chapter-10-Work-and-Energy-PDF.pdf",
+      "name": "174429-NCERT-Solutions-Class-9-Science-Chapter-10-Work-and-Energy-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch2-Work-Energy-Theorem/supporting",
+        "Physics-Ch3-Conservation-of-Mechanical-Energy/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is NCERT Class 9 Chapter 10: Work and Energy, which directly corresponds to the Work Energy Theorem chapter. Contains detailed explanations and solved problems on work done, kinetic energy, and power.",
+      "ts": "2026-07-27T19:05:17"
+    },
+    "33f51f91162deee5dd88831191860d2b85e05027a87e7466f5cf7858cfe86ee1": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17443-NCERT-Solutions-Class-9-Science-Chapter-1-Matter-in-our-surroundings-PDF.pdf",
+      "name": "17443-NCERT-Solutions-Class-9-Science-Chapter-1-Matter-in-our-surroundings-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State/supporting",
+        "Physics-Ch6-Fluids/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is NCERT Class 9 Science Chapter 1: Matter in Our Surroundings, which covers states of matter (solids, liquids, gases), intermolecular forces and spaces, density, diffusion, kinetic energy, and physical properties of matter. These are foundational topics directly aligned with the Gaseous State chapter in chemistry.",
+      "ts": "2026-07-27T19:05:22"
+    },
+    "a24f482dfe347954bb60cd2f94d5a0b5d576a744068a998ebe2faacf89d892f4": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/174432-NCERT-Solutions-for-Class-9-Maths-Chapter-1-Number-Systems-PDF.pdf",
+      "name": "174432-NCERT-Solutions-for-Class-9-Maths-Chapter-1-Number-Systems-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:05:27"
+    },
+    "5ea6bc60b1dc304c4ee61fdb3056c778b6103d40938203a8104b3933d5c4144e": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/17913-NCERT-Solutions-Class-9-Science-Chapter-2-Is-Matter-Around-Us-Pure-PDF.pdf",
+      "name": "17913-NCERT-Solutions-Class-9-Science-Chapter-2-Is-Matter-Around-Us-Pure-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document covers classification of matter into pure substances and mixtures (homogeneous vs heterogeneous), physical and chemical changes, and separation techniques. These are foundational topics in general chemistry that relate to states and properties of matter, closest to Gaseous State fundamentals.",
+      "ts": "2026-07-27T19:05:31"
+    },
+    "279f251596349d36e7922a38f92c3b18caa17f75deb6b1d2712ccb07ac7da217": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/182552-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.1-Arithmetic-Progressions-PDF.pdf",
+      "name": "182552-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.1-Arithmetic-Progressions-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT Solutions for Class 10 Maths Chapter 5 - Arithmetic Progressions. However, the valid bucket list shows 'Maths | Ch-5 | Straight Lines' which does not match the actual content about Arithmetic Progressions. There is no valid bucket for Arithmetic Progressions in the provided list.",
+      "ts": "2026-07-27T19:05:34"
+    },
+    "2020daaa8898a8305719ff2e05130a02cb457b36396692428a8a81b300c225b5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/182743-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.2-Arithmetic-Progressions-PDF.pdf",
+      "name": "182743-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.2-Arithmetic-Progressions-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document clearly states 'Class X : MATH Chapter 5 : Arithmetic Progressions'. This is NCERT Exercise 5.2 with detailed solutions on AP formulas and calculations. However, note: the valid bucket 'Maths | Ch-5' is listed as 'Straight Lines', not 'Arithmetic Progressions'. This appears to be a curriculum mismatch - the document is actually about Arithmetic Progressions (a Class 10 NCERT topic), but doesn't fit the available 9th-grade PCM bucket for Maths Ch-5.",
+      "ts": "2026-07-27T19:05:38"
+    },
+    "d21f855ce91505f100f68ab13c00ae33a13e34296bef5e82590bbbd7341a6f17": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183041-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.3-Arithmetic-Progressions-PDF.pdf",
+      "name": "183041-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.3-Arithmetic-Progressions-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:05:44"
+    },
+    "a582756216f4fb6174875bcb88c3b3c5f33ad409612adb7dda5ee945cb2cdc45": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183212-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.4-Arithmetic-Progressions-PDF.pdf",
+      "name": "183212-NCERT-Solutions-for-Class-10-Maths-chapter-5-Exercise-5.4-Arithmetic-Progressions-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Class X : MATH Chapter 5 : Arithmetic Progressions' with NCERT Exercise 5.4 solutions. However, the valid bucket list shows 'Maths | Ch-5 | Straight Lines' which does not match Arithmetic Progressions.",
+      "ts": "2026-07-27T19:05:47"
+    },
+    "17b54bb7d535a2192e28c9c81248c502ffa9fd3a12fd24c74b87f7d13744c3a8": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183428-NCERT-Solutions-Class-9-Science-Chapter-11-Sound-PDF.pdf",
+      "name": "183428-NCERT-Solutions-Class-9-Science-Chapter-11-Sound-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch5-Optics/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document contains Class IX Science Chapter 11: Sound, covering sound wave propagation, mechanical waves, wave properties (amplitude, frequency, wavelength), and wave behavior. Sound topics are part of Optics/Waves curriculum in Physics.",
+      "ts": "2026-07-27T19:05:51"
+    },
+    "2d5a481837d3774f5dc3f28303599b2b27203ffe5949fdedc0a27939f2bbc2b3": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183516-NCERT-Solutions-for-Class-10-Maths-chapter-6-Exercise-6.1-Triangles-PDF.pdf",
+      "name": "183516-NCERT-Solutions-for-Class-10-Maths-chapter-6-Exercise-6.1-Triangles-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:05:57"
+    },
+    "5a4624951224f8b7f387254aaa35c9c6f5afa8150828d37ce46b751ab0e0cfeb": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183618-NCERT-Solutions-Class-9-Science-Chapter-12-Improvement-In-Food-Resources-PDF.pdf",
+      "name": "183618-NCERT-Solutions-Class-9-Science-Chapter-12-Improvement-In-Food-Resources-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:06:03"
+    },
+    "de99f02e6c7904145ce5e7d1a31270225bbe6bf5a33c2902c8e7c15829bf9b55": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183711-NCERT-Solutions-For-Class-10-Maths-Chapter-6-Exercise-6.2-Triangles-PDF.pdf",
+      "name": "183711-NCERT-Solutions-For-Class-10-Maths-Chapter-6-Exercise-6.2-Triangles-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-07-27T19:06:09"
+    },
+    "1e062d0fb4775cda262fa37aad2428087b5a4959699abb6508c6536b032126a4": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/183935-NCERT-Solutions-for-Class-10-Maths-chapter-6-Exercise-6.3-Triangles-PDF.pdf",
+      "name": "183935-NCERT-Solutions-for-Class-10-Maths-chapter-6-Exercise-6.3-Triangles-PDF.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch6-Set-Theory/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is explicitly titled 'Class X : MATH Chapter - 6 : Triangles' with Exercise 6.3 from NCERT Book. The content covers triangle similarity problems using AAA, SSS, and SAS similarity criteria. However, this is Class X (Grade 10) Maths content about geometric triangles, not the Grade 11/12 'Set Theory' curriculum implied by the bucket. The closest match is Maths Ch-6, though there is a mismatch between the class level and chapter topic.",
+      "ts": "2026-07-27T19:06:15"
+    },
+    "67163e1e2e6866b92edcc2b27677d9787378c0e2e42eb3533eb8329b5c6a4f11": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/184757-NCERT-Solutions-for-Class-9-Maths-Chapter-2-Polynomials-PDF.pdf",
+      "name": "184757-NCERT-Solutions-for-Class-9-Maths-Chapter-2-Polynomials-PDF.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:06:22"
+    },
+    "1ce2e76f5b1738c6df687f66df4b70008b51d97297a5e2bc7ce1d1d3da7c03fe": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/CHEM-CLASS-9-NCERT-Atoms-Molecules-V1.2-Inayat.pdf",
+      "name": "CHEM-CLASS-9-NCERT-Atoms-Molecules-V1.2-Inayat.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:06:29"
+    },
+    "4df7b2b4f6e9d82be34f0986a57db01e2a9ae93ac1e0d44f7f0996b4822c0f34": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/CHEM-CLASS-9-NCERT-Is-Matter-around-us-pure-Inayat-V1.2.pdf",
+      "name": "CHEM-CLASS-9-NCERT-Is-Matter-around-us-pure-Inayat-V1.2.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Chemistry-Ch1-Gaseous-State/supporting"
+      ],
+      "route": "llm-haiku \u2014 File is titled 'Is Matter Around Us Pure' and covers fundamental chemistry concepts including pure substances, homogeneous and heterogeneous mixtures, solutions, and separation techniques (distillation, centrifugation, evaporation, sublimation). While this is a Grade 9 NCERT content file, it does not directly match any of the provided Grade 11/12 Chemistry chapter buckets. However, if forced to classify into available options, the foundational matter classification and separation methods relate most closely to preparatory chemistry, though this appears to be NCERT Grade 9 material rather than the specified advanced chemistry curriculum.",
+      "ts": "2026-07-27T19:06:33"
+    },
+    "beb9681e6fe0c64f17aa92956088647150f7747c6f3fec7e59ec7c918c8d8ce5": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/CHEM-CLASS-9-NCERT-Structure-of-the-atom-Neha-V1.3.pdf",
+      "name": "CHEM-CLASS-9-NCERT-Structure-of-the-atom-Neha-V1.3.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:06:39"
+    },
+    "2eaf07eb0ec79d14e83ae97b6d8abf70891c1e0ca3bee9464499324803ce4635": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/Class-10-NCERT-ElectricityHW-INDEX-shubhangi-V2.2-Priya-with-cover-page.pdf",
+      "name": "Class-10-NCERT-ElectricityHW-INDEX-shubhangi-V2.2-Priya-with-cover-page.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch8-Current/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is explicitly titled 'Electricity' and covers electric circuits, current (amperes), potential difference (voltage), and related topics. This is foundational content for Current Electricity (Physics Ch-8). The homework index lists topics like Ohm's Law, resistance, resistors in series/parallel, domestic circuits, heating effect of current, and electric power\u2014all core Current Electricity topics.",
+      "ts": "2026-07-27T19:06:53"
+    },
+    "e43b7829ce9c7bc778cf535fe3cf81515cb7111d994e569dc1939adee5a4ac53": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/Class-10-NCERT-Human-eyeHW-INDEX-V2.2-Priya-with-cover-page.pdf",
+      "name": "Class-10-NCERT-Human-eyeHW-INDEX-V2.2-Priya-with-cover-page.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch5-Optics/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is NCERT solutions for 'The Human Eye and The Colorful World' chapter, which covers refraction, dispersion, rainbow formation, atmospheric refraction, and light scattering - all core optics topics. Content includes lens defects (myopia), accommodation, and light phenomena, directly aligned with Physics Ch-5 Optics curriculum.",
+      "ts": "2026-07-27T19:06:59"
+    },
+    "e12933df240bc39cee5cbf49b008eeac2bb4ef8c1126d8be0021bb13e8b952f3": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/Class-10-NCERT-LightHW-INDEX-V2.2-Priya-with-cover-page.pdf",
+      "name": "Class-10-NCERT-LightHW-INDEX-V2.2-Priya-with-cover-page.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Physics-Ch5-Optics/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'Light-Reflection and Refraction' with comprehensive coverage of mirrors (plane, spherical, concave, convex), lens, refraction, and optical properties. This is a core Optics chapter topic.",
+      "ts": "2026-07-27T19:07:04"
+    },
+    "5c03feb249f922ea2422041824316da9db49cb1b9d541b9457cfc86682e7bf44": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/Class-10-NCERT-Source-of-enrgyHW-INDEX-V2.2-Priya-with-cover-page.pdf",
+      "name": "Class-10-NCERT-Source-of-enrgyHW-INDEX-V2.2-Priya-with-cover-page.pdf",
+      "kind": "review",
+      "route": "review (llm-sonnet)",
+      "ts": "2026-07-27T19:07:15"
+    }
+  }
+}
