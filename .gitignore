@@ -1,0 +1,43 @@
+# ============================================================
+# Study Notes Automation — .gitignore
+# ============================================================
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Secrets & Environment Files ──────────────────────────────
+.env
+.anthropic_env
+.google_env
+
+# ── OS / Editor Junk ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ── Logs & Runtime State ────────────────────────────────────
+*.log
+logs/
+state/
+.assemble_state.json
+
+# ── Generated Output Files ──────────────────────────────────
+*.docx
+_prev/
