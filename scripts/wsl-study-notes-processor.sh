@@ -4,24 +4,19 @@
 
 set -euo pipefail
 
-LOCAL_ROOT="/mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned"
-LOG_DIR="$LOCAL_ROOT/logs"
-LOG_FILE="$LOG_DIR/study-notes-pipeline.log"
-PARENT="/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/AI-Chapter-Notes"
+# REPO_ROOT is one level ABOVE this script's own directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
 PYTHON_BIN="$HOME/.global_venv/bin/python3"
 
 [ -x "$PYTHON_BIN" ] || PYTHON_BIN="python3"
 
-# REPO_ROOT is one level ABOVE this script's own directory. The pipeline
-# now runs directly from the dev repo (no more staging-copy into a fixed
-# C:\StudyNotesAutomation folder, so code edits take effect immediately
-# without re-running the installer) -- this script lives in <repo>/scripts/,
-# while src/main.py (which main.py's own imports like `import settings as
-# config` / `from src....` rely on) lives at <repo>/, one level up.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+# Extract configuration from settings.py dynamically to prevent hardcoded duplication
+LOG_FILE=$("$PYTHON_BIN" -c "import sys; sys.path.insert(0, '$REPO_ROOT'); from config.settings import UNIFIED_LOG_FILE; print(UNIFIED_LOG_FILE)")
+PARENT=$("$PYTHON_BIN" -c "import sys; sys.path.insert(0, '$REPO_ROOT'); from config.settings import DEFAULT_TARGET_ROOT; print(DEFAULT_TARGET_ROOT)")
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$(dirname "$LOG_FILE")"
 exec >>"$LOG_FILE" 2>&1
 
 # Fail fast with a CLEAR message if the pipeline code isn't actually where
