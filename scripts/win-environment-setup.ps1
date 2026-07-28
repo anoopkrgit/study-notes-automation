@@ -163,7 +163,10 @@ Log-Message "G:\ drive availability: $driveReady (waited ${i}s)"
 # where killing the wsl.exe frontend doesn't stop the command still running
 # inside the persistent WSL2 VM (wsl.exe is a thin RPC client, not the actual
 # process owner).
-$WslLocalRoot = ($LocalRoot -replace '^([A-Za-z]):', { '/mnt/' + $_.Groups[1].Value.ToLower() }) -replace '\\', '/'
+$WslLocalRoot = $LocalRoot -replace '\\', '/'
+if ($WslLocalRoot -match '^([A-Za-z]):(.*)') {
+    $WslLocalRoot = "/mnt/$($Matches[1].ToLower())$($Matches[2])"
+}
 $wslCommand = "$WslLocalRoot/scripts/wsl-study-notes-processor.sh"
 Log-Message "Launching WSL study notes processor: wsl.exe -e bash -lc `"$wslCommand`""
 $jobExit = 1
