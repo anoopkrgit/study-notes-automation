@@ -32,10 +32,11 @@ desktop.ini
 .idea/
 .vscode/
 
-# ── Logs & Runtime State ────────────────────────────────────
+# ── Logs (runtime only, not worth tracking) ────────────────
 *.log
 logs/
-state/
+
+# ── Legacy State File (root-level; the real one is state/assemble-state.json)
 .assemble_state.json
 
 # ── Generated Output Files ──────────────────────────────────

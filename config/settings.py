@@ -1,14 +1,10 @@
 # Configuration file for Study Notes Automation Pipeline
 import os
-import sys
 from pathlib import Path
 
-# Base Paths (Local NTFS C: drive for zero-latency unified execution)
-# OS-aware resolution so WSL Linux targets /mnt/c/ and Windows targets C:/
-if sys.platform == "win32":
-    LOCAL_RUNTIME_ROOT = Path("C:/06-PROJECTS/trial/study-notes-automation-redesigned")
-else:
-    LOCAL_RUNTIME_ROOT = Path("/mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned")
+# Base Paths — auto-detected from this file's location (config/settings.py → project root)
+# Works from any clone location on any machine, no manual editing required.
+LOCAL_RUNTIME_ROOT = Path(__file__).resolve().parent.parent
 
 LOG_DIR = LOCAL_RUNTIME_ROOT / "logs"
 STATE_DIR = LOCAL_RUNTIME_ROOT / "state"
