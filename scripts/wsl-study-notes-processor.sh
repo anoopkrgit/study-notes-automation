@@ -8,14 +8,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
-LOG_DIR="$REPO_ROOT/logs"
-LOG_FILE="$LOG_DIR/study-notes-pipeline.log"
-PARENT="/mnt/g/My Drive/Education/Student/Study-Programme/AI-Chapter-Notes"
 PYTHON_BIN="$HOME/.global_venv/bin/python3"
 
 [ -x "$PYTHON_BIN" ] || PYTHON_BIN="python3"
 
-mkdir -p "$LOG_DIR"
+# Extract configuration from settings.py dynamically to prevent hardcoded duplication
+LOG_FILE=$("$PYTHON_BIN" -c "import sys; sys.path.insert(0, '$REPO_ROOT'); from config.settings import UNIFIED_LOG_FILE; print(UNIFIED_LOG_FILE)")
+PARENT=$("$PYTHON_BIN" -c "import sys; sys.path.insert(0, '$REPO_ROOT'); from config.settings import DEFAULT_TARGET_ROOT; print(DEFAULT_TARGET_ROOT)")
+
+mkdir -p "$(dirname "$LOG_FILE")"
 exec >>"$LOG_FILE" 2>&1
 
 # Fail fast with a CLEAR message if the pipeline code isn't actually where
