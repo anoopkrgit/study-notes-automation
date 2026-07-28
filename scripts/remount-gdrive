@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# remount-gdrive
+# Passwordless helper script to repair stale Google Drive DrvFs mounts in WSL
+
+set -euo pipefail
+
+if [ -d "/mnt/g" ]; then
+    umount -l /mnt/g 2>/dev/null || true
+fi
+
+mkdir -p /mnt/g
+mount -t drvfs 'G:' /mnt/g
+echo "Google Drive G: remounted successfully at /mnt/g"
