@@ -4,22 +4,16 @@
 
 set -euo pipefail
 
-LOCAL_ROOT="/mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned"
-LOG_DIR="$LOCAL_ROOT/logs"
+# REPO_ROOT is one level ABOVE this script's own directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
+LOG_DIR="$REPO_ROOT/logs"
 LOG_FILE="$LOG_DIR/study-notes-pipeline.log"
 PARENT="/mnt/g/My Drive/Education/Student/Study-Programme/AI-Chapter-Notes"
 PYTHON_BIN="$HOME/.global_venv/bin/python3"
 
 [ -x "$PYTHON_BIN" ] || PYTHON_BIN="python3"
-
-# REPO_ROOT is one level ABOVE this script's own directory. The pipeline
-# now runs directly from the dev repo (no more staging-copy into a fixed
-# C:\StudyNotesAutomation folder, so code edits take effect immediately
-# without re-running the installer) -- this script lives in <repo>/scripts/,
-# while src/main.py (which main.py's own imports like `import settings as
-# config` / `from src....` rely on) lives at <repo>/, one level up.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 mkdir -p "$LOG_DIR"
 exec >>"$LOG_FILE" 2>&1
