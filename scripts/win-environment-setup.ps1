@@ -2,7 +2,9 @@
 # Windows Host Scaffolding: Power lock, Google Drive process/mount check, and Task Scheduler retry handler
 
 $ErrorActionPreference = "Continue"
-$LocalRoot = "C:\06-PROJECTS\trial\study-notes-automation-redesigned"
+$ScriptSource = $PSScriptRoot
+if (-not $ScriptSource) { $ScriptSource = Split-Path -Parent $MyInvocation.MyCommand.Definition }
+$LocalRoot = Split-Path -Parent $ScriptSource
 $LogDir    = "$LocalRoot\logs"
 $LogFile   = "$LogDir\study-notes-pipeline.log"
 $StateDir  = "$LocalRoot\state"
@@ -161,7 +163,8 @@ Log-Message "G:\ drive availability: $driveReady (waited ${i}s)"
 # where killing the wsl.exe frontend doesn't stop the command still running
 # inside the persistent WSL2 VM (wsl.exe is a thin RPC client, not the actual
 # process owner).
-$wslCommand = "/mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned/scripts/wsl-study-notes-processor.sh"
+$WslLocalRoot = ($LocalRoot -replace '^([A-Za-z]):', { '/mnt/' + $_.Groups[1].Value.ToLower() }) -replace '\\', '/'
+$wslCommand = "$WslLocalRoot/scripts/wsl-study-notes-processor.sh"
 Log-Message "Launching WSL study notes processor: wsl.exe -e bash -lc `"$wslCommand`""
 $jobExit = 1
 try {
