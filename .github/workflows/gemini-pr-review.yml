@@ -18,7 +18,7 @@ jobs:
       - name: Gemini Code Review
         uses: petarzarkov/gemini-code-review-action@latest
         with:
-          model: gemini-1.5-pro-latest
+          model: gemini-1.5-pro
           enable_conversation_context: false
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
