@@ -28,6 +28,32 @@ expected .docx file genuinely exists before trusting that signal.
 Defaults to MOCK MODE (a token-saving metadata-only ping) unless --live is
 given, so that testing the pipeline's plumbing never accidentally spends
 real API credits on a full generation run.
+
+WHERE THIS FITS IN THE PROJECT
+-------------------------------
+- src/main.py calls run_generate() below once per pipeline run.
+- Stage 1 (see src/direct_api/stage1_api.py) must run first: it sorts raw
+  files into per-chapter folders under config.DEFAULT_TARGET_ROOT. This
+  file only reads from those already-sorted folders -- it never looks at
+  the original inbox folders itself.
+- config/settings.py supplies every folder path, filename convention, and
+  cost-control knob used here.
+- src/func_tools_and_utils.py supplies the actual TOOL implementations
+  (reading/writing files, running a shell command, etc.) that this file's
+  AGENT_TOOLS menu below exposes to Claude, plus shared error-handling
+  helpers.
+- templates/study-notes.skill (a ZIP archive) holds the detailed
+  content/formatting rulebook this file loads and hands to Claude as its
+  main job instructions -- see load_skill_prompt() below.
+
+INPUT / OUTPUT SUMMARY
+------------------------
+  IN:  one chapter folder already assembled by Stage 1 -- its class
+       transcripts and any supporting material.
+  OUT: a finished, print-ready study-notes Word document (.docx) saved
+       into that same folder, plus a marker file recording success or
+       failure so re-running the pipeline knows not to redo (or knows to
+       retry) this chapter.
 """
 
 import argparse
@@ -151,6 +177,16 @@ Do the following without asking any questions:
 Make reasonable assumptions where inputs are ambiguous and proceed to completion. Never
 pause for confirmation."""
 
+# AGENT_TOOLS is the fixed MENU of actions Claude is allowed to request
+# during generation -- described in the same structured "tool" format used
+# by ROUTER_TOOL in stage1_api.py (see that file for a fuller explanation
+# of what a "tool" is in an AI API). Every entry below has a name, a
+# plain-English description Claude reads to know when to use it, and an
+# input_schema listing exactly what arguments it takes. Claude can never
+# do anything OUTSIDE this menu -- e.g. it cannot delete a file, browse
+# the internet, or run an arbitrary shell pipeline, because no such tool
+# is offered here. execute_tool() further below is what actually RUNS
+# whichever tool Claude asks for.
 AGENT_TOOLS = [
     {
         "name": "tool_read",
@@ -263,6 +299,25 @@ def _truncate_text_blocks(blocks: list, limit: int = 10000) -> list:
     return out
 
 def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool = False) -> int:
+    """The whole of Stage 2, run start to finish for ONE chapter. This is
+    the single function src/main.py calls to do "note generation" for one
+    pipeline run. Returns an exit code (see EXIT_OK/EXIT_RATE_LIMITED/
+    EXIT_FATAL in src/func_tools_and_utils.py) telling the caller what
+    happened.
+
+    Overall shape:
+      1. Pick which chapter folder to work on (an explicit `target_dir`,
+         or auto-pick the next ready one via select_target_chapter()).
+      2. If not `live_mode`: stop here, having spent zero API tokens (see
+         "MOCK MODE" below) -- useful for testing the pipeline's plumbing
+         without any cost.
+      3. If `live_mode`: run the AGENTIC LOOP described in this module's
+         docstring at the top of the file -- repeatedly asking Claude what
+         to do next and running whichever tools it requests -- until
+         Claude signals it's done, the turn/attempt budget runs out, or an
+         unrecoverable error occurs. Progress is saved to a JSON file after
+         every turn, so an interrupted run can RESUME from where it left
+         off next time instead of starting over from turn 0."""
     logger.info(f"=== Stage 2: Agentic Note Generator (live_mode={live_mode}) ===")
 
     target_root = config.DEFAULT_TARGET_ROOT
@@ -350,9 +405,18 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         system_prompt = f"You are an expert study-notes generator.\n\nSKILL DEFINITION:\n{load_skill_prompt()}"
         default_messages = [{"role": "user", "content": build_user_prompt(target_dir, top_transcripts, sup_files, expected_docx)}]
 
+    # `messages` is the running back-and-forth conversation with Claude:
+    # our instructions, its replies, and every tool result, all in order.
+    # Every new turn (below) sends the WHOLE conversation so far again --
+    # Claude has no memory of its own between API calls, so this list IS
+    # its only memory of what's happened.
     messages = default_messages
     start_turn = 0
     attempts = 0
+    # If a PREVIOUS run of this same chapter got interrupted partway
+    # through (crash, rate limit, process killed), its conversation state
+    # was saved to progress_file -- load it back so this run RESUMES from
+    # that exact point instead of starting the chapter over from scratch.
     if progress_file.exists():
         try:
             state = json.loads(progress_file.read_text(encoding="utf-8"))
@@ -385,8 +449,14 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
 
     tracker = TokenTracker()
     try:
+        # THE AGENTIC LOOP: one iteration = one "turn" = one round trip to
+        # Claude. This keeps going, turn after turn, until Claude stops
+        # requesting tools (meaning it believes the chapter is finished) or
+        # the turn budget (config.MAX_TURNS) runs out.
         for turn in range(start_turn, config.MAX_TURNS):
             logger.info(f"Generation loop turn {turn + 1}/{config.MAX_TURNS}...")
+            # Send the ENTIRE conversation so far, plus the tool menu
+            # (AGENT_TOOLS), and get Claude's next reply back.
             resp = client.messages.create(
                 model=generator_model,
                 max_tokens=max_tokens,
@@ -400,6 +470,11 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
             if text_blocks:
                 logger.info(f"Claude: {text_blocks[0][:200].strip()}...")
 
+            # Claude's reply is a list of "blocks" -- some plain text
+            # (its running commentary) and/or "tool_use" blocks (requests
+            # to run a specific tool with specific arguments). Record the
+            # WHOLE reply, as-is, into the conversation history so the next
+            # turn has full context of what Claude just said/asked for.
             content_list = []
             for b in resp.content:
                 if b.type == "text":
@@ -408,6 +483,10 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
                     content_list.append({"type": "tool_use", "id": b.id, "name": b.name, "input": b.input})
             messages.append({"role": "assistant", "content": content_list})
 
+            # No tool_use blocks in this reply == Claude's way of saying
+            # "I'm done". Don't just take its word for it though: verify
+            # the actual .docx file it was supposed to produce genuinely
+            # exists on disk before declaring success.
             tool_calls = [b for b in resp.content if b.type == "tool_use"]
             if not tool_calls:
                 logger.info("Claude finished generation without calling more tools.")
@@ -424,6 +503,12 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
                     progress_file.unlink(missing_ok=True)
                     return EXIT_FATAL
 
+            # Claude DID request one or more tools -- actually run each one
+            # (execute_tool(), defined above) and package every result as a
+            # "tool_result" block tagged with that tool call's own ID, so
+            # Claude can tell which result answers which request. These
+            # results become the next message sent back to Claude, closing
+            # the loop for another turn.
             tool_results = []
             for t in tool_calls:
                 logger.info(f"  Executing tool: {t.name}")
@@ -442,6 +527,13 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         return EXIT_FATAL
 
     except Exception as e:
+        # classify_api_error() (src/func_tools_and_utils.py) inspects what
+        # went wrong and decides: is this a TEMPORARY problem worth
+        # retrying later (e.g. the API is rate-limited or briefly
+        # overloaded), or a PERMANENT one (e.g. a malformed request) that
+        # retrying won't fix? A temporary error keeps the progress file
+        # (so the next run resumes this same attempt); a permanent one
+        # gives up on this chapter and records why.
         info = classify_api_error(e)
         if info["retry"]:
             write_retry_epoch(info["retry_epoch"])
@@ -455,6 +547,9 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         tracker.log_summary(logger, "Stage 2 (Agentic Note Generator)")
         logger.info("----------------------------------------------------------------------")
 
+# This block only runs if someone executes `python3 stage2_api.py` directly
+# (e.g. for manual testing) -- in normal pipeline operation, src/main.py
+# imports and calls run_generate() itself instead, this block never runs.
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stage 2 Agentic Study Notes Generator")
     parser.add_argument("--live", action="store_true", help="Run full live LLM generation instead of default mock mode")
