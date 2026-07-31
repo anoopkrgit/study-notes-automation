@@ -63,9 +63,13 @@ def generate_notes(target_dir: Path = None, live_mode: bool = False, verbose: bo
         logger.info('Stage 2: using GRAPH implementation (multi-agent)')
         from src.agents.stage2_graph import run_stage2_chapter
         return run_stage2_chapter(target_dir, live_mode)
+    elif impl == 'subprocess':
+        logger.info('Stage 2: using SUBPROCESS implementation (claude CLI)')
+        from src.claude_cli_subprocess.stage2 import run_stage2_chapter as cli_run_stage2_chapter
+        return cli_run_stage2_chapter(target_dir, live_mode)
     else:
         logger.info('Stage 2: using LEGACY implementation (monolithic loop)')
-        from src.func_generate_notes import run_generate
+        from src.direct_api.func_generate_notes import run_generate
         return run_generate(target_dir, live_mode, verbose)
 
 
@@ -89,7 +93,11 @@ def route_file(path: Path, buckets, prior=None, tracker=None, impl: str = None):
         logger.info('Stage 1: using GRAPH implementation (multi-agent)')
         from src.agents.stage1_graph import route_one_file
         return route_one_file(path, buckets, prior)
+    elif impl == 'subprocess':
+        logger.info('Stage 1: using SUBPROCESS implementation (claude CLI)')
+        from src.claude_cli_subprocess.stage1 import route_file as cli_route_file
+        return cli_route_file(path, buckets, prior, tracker)
     else:
         logger.info('Stage 1: using LEGACY implementation')
-        from src.func_assemble_chapters import llm_route
+        from src.direct_api.func_assemble_chapters import llm_route
         return llm_route(path, buckets, prior, tracker)

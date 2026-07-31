@@ -17,9 +17,9 @@ This document details the linear execution pipeline for the Study Notes Automati
    │  [Env Stabilization]
    ├─► Heal Linux mount via `sudo remount-gdrive` if `/mnt/g` handle is stale
    ├─► Check `DUMMY_UNTIL` timestamp gate (exit early if testing without tokens)
-   └─► Launch Python engine: `python3 src/main.py --run-assemble --run-generate-no-llm`
+   └─► Launch Python engine: `python3 src/main.py --stage1-mode llm-full --stage2-mode no-llm`
        (assemble WITH the LLM, generate WITHOUT it -- zero tokens for generation;
-        see readme.md's Quick Start for every --run-* flag combination)
+        see readme.md's Quick Start for every --stageN-mode/--stageN-impl combination)
    │
    ▼
 4. main.py / func-assemble-chapters.py / func-generate-notes.py (Python Engine)

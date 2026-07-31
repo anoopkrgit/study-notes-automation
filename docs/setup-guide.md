@@ -82,9 +82,12 @@ All system output is written to a single unified log file accessible from both W
 Which implementation `StudyNotesNightly` runs is a pure CLI choice, forwarded from the
 Task Scheduler action's arguments, through `win-environment-setup.ps1`'s `-PipelineArgs`
 parameter, through `wsl-study-notes-processor.sh`, down to `main.py`'s own
-`--stage1-impl`/`--stage2-impl {legacy,graph}` and `--dev-token-saver` flags (see
-`python3 src/main.py --help`). No source file, env var, or config needs editing to
-change modes — only the registered task's action.
+`--stage1-impl`/`--stage2-impl {legacy,graph,subprocess}` and
+`--stage1-mode`/`--stage2-mode {off,no-llm,llm-token-saver,llm-full}` flags (see
+`python3 src/main.py --help`). The two `--stageN-mode` flags are fully independent per
+stage — e.g. Stage 1 can run `llm-full` while Stage 2 runs `llm-token-saver` in the same
+invocation. No source file, env var, or config needs editing to change modes — only the
+registered task's action.
 
 Run one of these three blocks in an elevated PowerShell prompt to select a mode. Each
 one fully replaces the task's action; only run the one you want active.
@@ -98,12 +101,12 @@ Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
 
 **2. Agentic, dummy prompts** — new multi-agent graph pipeline, real API calls but
-capped/cheap (`DEV_TOKEN_SAVER_MODE`); a smoke test, produces a placeholder `.docx`,
-not usable notes:
+capped/cheap (`DEV_TOKEN_SAVER_MODE`, via `llm-token-saver`); a smoke test, produces a
+placeholder `.docx`, not usable notes:
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --run-assemble --run-generate --dev-token-saver`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-token-saver --stage2-mode llm-token-saver`""
 Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
 
@@ -112,7 +115,7 @@ real `.docx`:
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --run-assemble --run-generate`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full`""
 Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
 

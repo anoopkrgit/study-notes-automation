@@ -309,10 +309,10 @@ established.
    "/study-notes ..." --output-format json` against one real, small, already-assembled
    chapter (via `--add-dir`) with `env -u ANTHROPIC_API_KEY`. Confirm the skill actually loads
    before writing any wrapper code.
-2. **Static checks, zero `claude` invocations:** full test suite passes; `--run-generate-no-llm
+2. **Static checks, zero `claude` invocations:** full test suite passes; `--stage2-mode no-llm
    --stage2-impl subprocess` (once the stub is replaced) confirms readiness checks (claude on
    PATH, skill package found) with no subprocess/network call; `--doctor` reports sensibly.
-3. **Manual single-chapter run**, `python3 src/main.py --run-generate --stage2-impl subprocess`
+3. **Manual single-chapter run**, `python3 src/main.py --stage2-mode llm-full --stage2-impl subprocess`
    at a terminal, watching the log live. Confirm the scrubbed-env subprocess call fires
    correctly, the truth-check gates the success marker, cost/usage are logged, and —
    critically, out-of-band via Claude.ai's usage view — that the run billed against the
@@ -464,7 +464,7 @@ print('all imports OK')
 
 # 4. CLI surface + fail-fast check
 python3 src/main.py --help | grep -A3 "stage1-impl\|stage2-impl"
-python3 src/main.py --run-generate --stage2-impl subprocess; echo "exit code: $?"  # expect parser.error, nonzero, no work started
+python3 src/main.py --stage2-mode llm-full --stage2-impl subprocess; echo "exit code: $?"  # expect parser.error, nonzero, no work started
 
 # 5. Doc-reference grep, before and after edits
 grep -rn "func_assemble_chapters\|func_generate_notes" --include="*.md" .
@@ -475,6 +475,29 @@ Stage 1 routing call via `--stage1-impl subprocess` against a single test file, 
 `ANTHROPIC_API_KEY` did not leak into the subprocess — most certain method is temporarily
 pointing `CLAUDE_BIN` at a tiny wrapper script that dumps `env` to a file before exec'ing the
 real `claude` binary, then grepping that dump for `ANTHROPIC_API_KEY` (expect no match).
+
+## Streamlined cost-safety mode across all three implementations (implemented)
+
+`config.DEV_TOKEN_SAVER_MODE` is set per-stage via `--stage1-mode`/`--stage2-mode
+{off,no-llm,llm-token-saver,llm-full}` (see `src/main.py::resolve_stage_mode()`) — there is no
+longer a standalone `--dev-token-saver` flag. Passing `llm-token-saver` for a stage produces a
+near-zero-cost real call that still exercises that stage's full wiring, using whatever
+cost-control mechanism its active `--stageN-impl` actually has available. Because the setting
+is per-stage rather than global, the two stages can independently be `llm-full` and
+`llm-token-saver` in the same invocation — e.g. a real Stage 1 routing pass alongside a cheap
+Stage 2 wiring smoke test.
+
+| Implementation | Cheap model | Dummy prompt (skips real content) | Capped output | Skipped escalation |
+|---|---|---|---|---|
+| `direct_api` (`src/direct_api/`) | Stage 1 already uses cheap `ROUTER_MODEL`; Stage 2 switches to `FIGURE_MODEL` | Stage 1 skips `extract_content()` (real PDF pages); Stage 2 skips `build_user_prompt()`/`load_skill_prompt()` | `max_tokens` capped (150 for Stage 1's forced tool call, 50 for Stage 2) | n/a (Stage 1 has no escalation step) |
+| `agents` (`src/agents/`) | forces `FIGURE_MODEL` for every node | `prompts.py` swaps in a one-line dummy instruction | `max_tokens=50` | n/a |
+| `claude_cli_subprocess` (`src/claude_cli_subprocess/`) | n/a (CLI has no cheap/expensive model split at this layer beyond `ROUTER_MODEL`/`ESCALATE_MODEL`) | `stage1.py` skips the real routing prompt (never points the CLI at a real file) | `--max-budget-usd`/`--effort low` (no SDK `max_tokens` to cap) | escalation to `ESCALATE_MODEL` skipped entirely |
+
+New settings: `config.DEV_TOKEN_SAVER_MAX_BUDGET_USD` (default `"0.02"`), `config.DEV_TOKEN_SAVER_EFFORT`
+(default `"low"`) — subprocess-specific, since the CLI has no `max_tokens` equivalent to cap
+directly. When Stage 2 subprocess (`src/claude_cli_subprocess/stage2.py`) is eventually built,
+it should follow the same pattern: dummy `/study-notes` prompt that doesn't point at real
+transcripts, plus these same two flags, rather than inventing a new mechanism.
 
 ## Open items carried into implementation
 

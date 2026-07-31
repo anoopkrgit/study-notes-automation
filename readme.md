@@ -103,30 +103,38 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ### CLI Usage
 
+Each stage is controlled by one `--stageN-mode {off,no-llm,llm-token-saver,llm-full}` flag
+(default `off`) — see `python3 src/main.py --help` for the full picture, including
+`--stage1-impl`/`--stage2-impl {legacy,graph,subprocess}` for choosing which implementation
+runs each stage.
+
 ```bash
 # Health check — verify all tools are available
 python3 src/main.py --doctor
 
 # Stage 1 only (assemble + LLM routing)
-python3 src/main.py --run-assemble
+python3 src/main.py --stage1-mode llm-full
 
 # Stage 1 only (deterministic filename routing, no tokens spent)
-python3 src/main.py --run-assemble-no-llm
+python3 src/main.py --stage1-mode no-llm
 
 # Stage 2 only (generate notes — spends tokens)
-python3 src/main.py --run-generate
+python3 src/main.py --stage2-mode llm-full
 
 # Stage 2 preview (zero tokens, shows what it would generate)
-python3 src/main.py --run-generate-no-llm
+python3 src/main.py --stage2-mode no-llm
 
 # Full pipeline (both stages, both with LLM)
-python3 src/main.py --run-both
+python3 src/main.py --stage1-mode llm-full --stage2-mode llm-full
 
 # Nightly policy: assemble with LLM, generate preview only
-python3 src/main.py --run-assemble --run-generate-no-llm
+python3 src/main.py --stage1-mode llm-full --stage2-mode no-llm
+
+# Cheap smoke test of both stages' wiring, near-zero cost
+python3 src/main.py --stage1-mode llm-token-saver --stage2-mode llm-token-saver
 
 # Any combination also accepts --verbose / --quiet / --dry-run
-python3 src/main.py --run-assemble-no-llm --dry-run
+python3 src/main.py --stage1-mode no-llm --dry-run
 ```
 
 ---

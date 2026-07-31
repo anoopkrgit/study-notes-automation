@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 # Setup path so imports work
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -31,10 +32,10 @@ from src.func_tools_and_utils import (
     logger as pipeline_logger,
 )
 import src.func_classify_and_rename as cr
-import src.func_generate_notes as fgn
-from src.func_generate_notes import select_target_chapter, run_generate
+import src.direct_api.func_generate_notes as fgn
+from src.direct_api.func_generate_notes import select_target_chapter, run_generate
 from src.func_tools_and_utils import EXIT_OK
-import src.func_assemble_chapters as fac
+import src.direct_api.func_assemble_chapters as fac
 
 
 # ── sha256 tests ──────────────────────────────────────────────────────────────
@@ -528,6 +529,86 @@ def test_run_generate_mock_mode_makes_zero_api_calls():
         # produce (or claim to produce) any actual output.
         assert not any(chapter_dir.glob("*.docx"))
         assert not (chapter_dir / config.MARKER).exists()
+
+
+# ── DEV_TOKEN_SAVER_MODE parity: src/direct_api/ (streamlined across all
+#    three --stageN-impl choices -- see src/direct_api/__init__.py) ────────
+
+class _CapturingClient:
+    """Fake Anthropic client recording the kwargs of the most recent
+    .messages.create() call, returning a minimal valid tool_use response."""
+    def __init__(self, tool_input):
+        self.messages = self
+        self.last_kwargs = None
+        self._tool_input = tool_input
+
+    def create(self, **kwargs):
+        self.last_kwargs = kwargs
+        block = SimpleNamespace(type="tool_use", name="route_file", input=self._tool_input)
+        return SimpleNamespace(content=[block], usage=None)
+
+
+def test_llm_route_dev_token_saver_mode_skips_extraction_and_caps_tokens(monkeypatch, tmp_path):
+    """DEV_TOKEN_SAVER_MODE must not call extract_content() (base64 PDF
+    pages are this call's actual token-cost driver) and must cap
+    max_tokens down from 2048 to a small value still large enough for a
+    valid forced tool_use reply."""
+    monkeypatch.setattr(config, "DEV_TOKEN_SAVER_MODE", True)
+    fake_client = _CapturingClient({"matches": []})
+    original_client = fac.client
+    fac.client = fake_client
+
+    def _exploding_extract_content(path):
+        raise AssertionError("DEV_TOKEN_SAVER_MODE must not call extract_content()")
+    original_extract = fac.extract_content
+    fac.extract_content = _exploding_extract_content
+    try:
+        dummy_file = tmp_path / "sample.pdf"
+        dummy_file.write_bytes(b"%PDF fake")
+        buckets = {("Physics", 1): "Motion"}
+        matches, limited, model_used = fac.llm_route(dummy_file, buckets)
+    finally:
+        fac.client = original_client
+        fac.extract_content = original_extract
+
+    assert limited is False
+    assert fake_client.last_kwargs["max_tokens"] == 150
+
+
+def test_run_generate_live_mode_dev_token_saver_uses_cheap_model_and_dummy_prompt(tmp_path, monkeypatch):
+    """DEV_TOKEN_SAVER_MODE's --live branch must use the cheap FIGURE_MODEL,
+    cap max_tokens to 50, and never build the real (large) prompt via
+    build_user_prompt()/load_skill_prompt()."""
+    monkeypatch.setattr(config, "DEV_TOKEN_SAVER_MODE", True)
+    chapter_dir = tmp_path / "Physics-Ch1-Force-and-Laws-of-Motion"
+    (chapter_dir / config.TRANSCRIPTS_DIR).mkdir(parents=True)
+    (chapter_dir / config.TRANSCRIPTS_DIR / "26-05-08_Phy FA27 Lec1.pdf").write_text("dummy", encoding="utf-8")
+
+    fake_client = _CapturingClient(None)
+    def _create(**kwargs):
+        fake_client.last_kwargs = kwargs
+        return SimpleNamespace(content=[], usage=None)  # no tool_use -> loop ends this turn
+    fake_client.create = _create
+
+    def _exploding_build_user_prompt(*a, **k):
+        raise AssertionError("DEV_TOKEN_SAVER_MODE must not call the real build_user_prompt()")
+    original_client = fgn.client
+    original_build_prompt = fgn.build_user_prompt
+    fgn.client = fake_client
+    fgn.build_user_prompt = _exploding_build_user_prompt
+    try:
+        result = run_generate(target_dir=chapter_dir, live_mode=True)
+    finally:
+        fgn.client = original_client
+        fgn.build_user_prompt = original_build_prompt
+
+    # No real docx was ever produced (dummy prompt, one turn, no tools
+    # called) -- FAILMARK is the correct, expected outcome for this smoke
+    # test, same as a real single-turn stop with no output would be.
+    assert result == fgn.EXIT_FATAL
+    assert fake_client.last_kwargs["max_tokens"] == 50
+    assert fake_client.last_kwargs["model"] == config.FIGURE_MODEL
+    assert "DEV_TOKEN_SAVER_MODE" in fake_client.last_kwargs["system"]
 
 
 if __name__ == "__main__":
