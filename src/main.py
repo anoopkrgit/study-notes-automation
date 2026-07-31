@@ -7,6 +7,9 @@ Flags (combine freely -- see `python3 main.py --help` for the full picture):
   --run-assemble / --run-assemble-no-llm   Stage 1, with/without the LLM router
   --run-generate / --run-generate-no-llm   Stage 2, with/without the LLM (tokens)
   --run-both                               shorthand: both stages, both WITH the LLM
+  --stage1-impl {legacy,graph}             which Stage 1 implementation runs (default: legacy)
+  --stage2-impl {legacy,graph}             which Stage 2 implementation runs (default: legacy)
+  --dev-token-saver                        cheap smoke-test mode for --stage2-impl graph (see flag help)
   --doctor                                 environment health check, then exit
 """
 
@@ -23,7 +26,7 @@ sys.path.insert(0, str(ROOT_DIR))
 import settings as config
 from src.func_tools_and_utils import logger, EXIT_OK, EXIT_FATAL
 from src.func_assemble_chapters import run_assemble
-from src.func_generate_notes import run_generate
+from src.agents.dispatch import generate_notes as run_generate
 
 def run_doctor():
     """Environment health check diagnostics."""
@@ -131,6 +134,17 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Assemble stage only: show planned actions without modifying any files")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("--quiet", action="store_true", help="Suppress INFO logs; show only warnings and errors")
+    parser.add_argument("--stage1-impl", choices=["legacy", "graph"], default="legacy",
+                         help="Stage 1 implementation: 'legacy' single-call router (default) or 'graph' "
+                              "multi-step Triage/Extraction flowchart (src/agents/stage1_graph.py)")
+    parser.add_argument("--stage2-impl", choices=["legacy", "graph"], default="legacy",
+                         help="Stage 2 implementation: 'legacy' monolithic loop (default) or 'graph' "
+                              "multi-agent flowchart (src/agents/stage2_graph.py)")
+    parser.add_argument("--dev-token-saver", action="store_true",
+                         help="Only meaningful with --stage2-impl graph --run-generate: cheap smoke-test "
+                              "mode (dummy prompts, capped output, cheapest model, no real PDF extraction). "
+                              "Real API calls at near-zero cost, but produces a placeholder .docx, not usable "
+                              "notes -- never use for a real run.")
     return parser
 
 
@@ -170,6 +184,15 @@ def main():
     elif args.verbose:
         logger.setLevel(logging.DEBUG)
 
+    if args.dev_token_saver:
+        # Set directly on the already-imported config module rather than via
+        # os.environ -- settings.py reads DEV_TOKEN_SAVER_MODE from the
+        # environment only once, at import time (which has already happened
+        # by now), so an env var set here would be read too late.
+        config.DEV_TOKEN_SAVER_MODE = True
+        logger.info("DEV_TOKEN_SAVER_MODE enabled via --dev-token-saver "
+                     "(dummy prompts, capped tokens, cheapest model -- never for a real run).")
+
     if args.doctor:
         sys.exit(run_doctor())
 
@@ -182,7 +205,8 @@ def main():
 
     exit_code = EXIT_OK
     if assemble_with_llm is not None:
-        exit_code = run_assemble(dry_run=args.dry_run, no_llm=not assemble_with_llm, verbose=args.verbose)
+        exit_code = run_assemble(dry_run=args.dry_run, no_llm=not assemble_with_llm, verbose=args.verbose,
+                                  stage1_impl=args.stage1_impl)
         if exit_code != EXIT_OK:
             # Assembly failed: don't proceed to generation even if it was
             # also requested in this same command -- generating notes from
@@ -192,7 +216,7 @@ def main():
             sys.exit(exit_code)
 
     if generate_with_llm is not None:
-        exit_code = run_generate(live_mode=generate_with_llm, verbose=args.verbose)
+        exit_code = run_generate(live_mode=generate_with_llm, verbose=args.verbose, impl=args.stage2_impl)
 
     sys.exit(exit_code)
 

@@ -55,3 +55,32 @@ REVIEW_DIR_NAME = "_needs_review"
 
 IGNORE_NAMES = {"desktop.ini", "Thumbs.db", ".DS_Store"}
 IGNORE_EXTS = {".tmp", ".part", ".crdownload"}
+
+# ---------------------------------------------------------------------------
+# Multi-Agent Architecture settings (src/agents/)
+# All default to legacy behavior — zero change until explicitly opted in.
+# ---------------------------------------------------------------------------
+
+# Per-agent model overrides
+AUTHOR_MODEL   = os.environ.get("STUDY_NOTES_AUTHOR_MODEL", "claude-sonnet-5")
+FIGURE_MODEL   = os.environ.get("STUDY_NOTES_FIGURE_MODEL", "claude-haiku-4-5")
+COMPILER_MODEL = os.environ.get("STUDY_NOTES_COMPILER_MODEL", "claude-haiku-4-5")  # error-diagnosis only
+TRIAGE_MODEL   = os.environ.get("ASSEMBLE_ROUTER_MODEL", "claude-haiku-4-5-20251001")  # compat alias
+GENERATOR_MODEL_ALIAS = AUTHOR_MODEL  # back-compat alias
+
+# QA↔Author retry cap (replaces the implicit "loop until turn 200" safety valve
+# with an explicit, targeted retry cap on the one edge that actually needs it)
+QA_MAX_RETRY_LOOPS = int(os.environ.get("STUDY_NOTES_QA_MAX_RETRIES", "5"))
+
+# LangGraph checkpointer storage
+GRAPH_CHECKPOINT_DIR = STATE_DIR / "graph-checkpoints"
+
+# Rollout wrapper (src/agents/dispatch.py reads these)
+# "legacy" = existing monolithic code, zero behavior change
+# "graph"  = new multi-agent LangGraph implementation
+STAGE1_IMPL = os.environ.get("STUDY_NOTES_STAGE1_IMPL", "legacy")
+STAGE2_IMPL = os.environ.get("STUDY_NOTES_STAGE2_IMPL", "legacy")
+
+# Cost-safe dev/test toggle — forces cheap models, tiny prompts, capped output,
+# and dummy inputs across all graph nodes.  NEVER enable for production runs.
+DEV_TOKEN_SAVER_MODE = os.environ.get("DEV_TOKEN_SAVER_MODE", "0") == "1"

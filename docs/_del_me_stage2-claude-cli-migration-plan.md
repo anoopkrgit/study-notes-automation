@@ -1,3 +1,13 @@
+> **SUPERSEDED — kept for reference only, not deleted.** Merged into
+> `docs/cli-subprocess-plan.md`, reconciled against the current 3-parallel-implementations
+> architecture (`src/direct_api/`, `src/agents/`, `src/claude_cli_subprocess/`). This doc
+> assumed Stage 2 had a single implementation being replaced in place — under the current
+> architecture, several of its instructions below (e.g. "remove `tool_*` from
+> `func_tools_and_utils.py`", "remove `GENERATOR_MODEL`/`MAX_TURNS`") are **wrong** and must
+> not be followed literally; see `docs/cli-subprocess-plan.md`'s "Corrections from the
+> superseded doc" section. Everything else here (skill package facts, function designs,
+> config settings, verification staging) was carried forward accurately.
+
 # Plan: Move Stage 2 (note generation) from raw Anthropic API to `claude` CLI subscription billing, using the engineered study-notes skill package
 
 ## Context

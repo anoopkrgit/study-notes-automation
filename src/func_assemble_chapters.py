@@ -246,7 +246,7 @@ def write_sources(folder: Path, entries: list, dry: bool):
         lines.append(f"[{role}] {fn}" + (f"  — {note}" if note else ""))
     (folder / config.SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-def run_assemble(dry_run: bool = False, no_llm: bool = False, verbose: bool = False) -> int:
+def run_assemble(dry_run: bool = False, no_llm: bool = False, verbose: bool = False, stage1_impl: str = None) -> int:
     logger.info("-" * 70)
     logger.info(f"=== Stage 1: Chapter Folder Assembler (dry_run={dry_run}, no_llm={no_llm}, verbose={verbose}) ===")
 
@@ -315,7 +315,8 @@ def run_assemble(dry_run: bool = False, no_llm: bool = False, verbose: bool = Fa
 
             route = "spine (filename)"
             if not no_llm:
-                matches, limited_a, model_used = llm_route(src, buckets, prior=prior, tracker=tracker)
+                from src.agents.dispatch import route_file
+                matches, limited_a, model_used = route_file(src, buckets, prior=prior, tracker=tracker, impl=stage1_impl)
                 if limited_a:
                     route = "spine (filename-fallback, router unavailable)"
                     logger.info(f"  [A] router unavailable for {src.name}; filing by filename")
@@ -427,7 +428,8 @@ def run_assemble(dry_run: bool = False, no_llm: bool = False, verbose: bool = Fa
                     logger.info(f"  [B] deferred (no-llm, no filename match): {p.name}")
                 continue
         else:
-            matches, limited, model_used = llm_route(p, buckets, prior=prior, tracker=tracker)
+            from src.agents.dispatch import route_file
+            matches, limited, model_used = route_file(p, buckets, prior=prior, tracker=tracker, impl=stage1_impl)
             if limited:
                 logger.info("  [B] usage limit hit during routing; leaving the rest for next run.")
                 break
