@@ -17,7 +17,7 @@ def test_generate_notes_legacy_by_default():
     """When STAGE2_IMPL='legacy' (default), dispatch calls run_generate."""
     with patch('src.agents.dispatch.config') as mock_config:
         mock_config.STAGE2_IMPL = 'legacy'
-        with patch('src.direct_api.func_generate_notes.run_generate', return_value=0) as mock_rg:
+        with patch('src.direct_api.stage2_api.run_generate', return_value=0) as mock_rg:
             from src.agents.dispatch import generate_notes
             result = generate_notes(Path('/fake'), live_mode=False, verbose=False)
             assert result == 0
@@ -37,7 +37,7 @@ def test_route_file_legacy_by_default():
     """When STAGE1_IMPL='legacy', dispatch calls llm_route."""
     with patch('src.agents.dispatch.config') as mock_config:
         mock_config.STAGE1_IMPL = 'legacy'
-        with patch('src.direct_api.func_assemble_chapters.llm_route', return_value=([], False, 'mock')) as mock_lr:
+        with patch('src.direct_api.stage1_api.llm_route', return_value=([], False, 'mock')) as mock_lr:
             from src.agents.dispatch import route_file
             result = route_file(Path('/fake'), {})
             assert result == ([], False, 'mock')
@@ -53,10 +53,10 @@ def test_route_file_graph_mode():
 
 def test_generate_notes_subprocess_mode_dispatches_to_cli_stage2():
     """When STAGE2_IMPL='subprocess', dispatch calls the real (built)
-    claude_cli_subprocess.stage2.run_stage2_chapter."""
+    claude_cli_subprocess.stage2_cli.run_stage2_chapter."""
     with patch('src.agents.dispatch.config') as mock_config:
         mock_config.STAGE2_IMPL = 'subprocess'
-        with patch('src.claude_cli_subprocess.stage2.run_stage2_chapter', return_value=0) as mock_s2:
+        with patch('src.claude_cli_subprocess.stage2_cli.run_stage2_chapter', return_value=0) as mock_s2:
             from src.agents.dispatch import generate_notes
             result = generate_notes(Path('/fake'), live_mode=False, verbose=False)
             assert result == 0
@@ -66,7 +66,7 @@ def test_route_file_subprocess_mode():
     """When STAGE1_IMPL='subprocess', dispatch calls cli_route_file."""
     with patch('src.agents.dispatch.config') as mock_config:
         mock_config.STAGE1_IMPL = 'subprocess'
-        with patch('src.claude_cli_subprocess.stage1.route_file', return_value=([], False, 'mock_subprocess')) as mock_rf:
+        with patch('src.claude_cli_subprocess.stage1_cli.route_file', return_value=([], False, 'mock_subprocess')) as mock_rf:
             from src.agents.dispatch import route_file
             result = route_file(Path('/fake'), {})
             assert result == ([], False, 'mock_subprocess')

@@ -1,5 +1,5 @@
 """
-func_assemble_chapters.py
+stage1_api.py
 
 Stage 1 Assembler module: Reads transcripts & collected materials,
 logs each file being processed/classified, calls LLM router when needed,
@@ -476,7 +476,7 @@ def run_assemble(dry_run: bool = False, no_llm: bool = False, verbose: bool = Fa
             if not dry_run:
                 # This chapter's supporting material arrived before its
                 # transcript spine (Stage A above never saw this subject+
-                # chapter combination). HOLD it: func_generate_notes.py's
+                # chapter combination). HOLD it: stage2_api.py's
                 # picker must never generate notes for a chapter that has
                 # no transcript yet, since the transcript defines the
                 # chapter's scope. Once the matching transcript arrives,

@@ -102,7 +102,7 @@ ESCALATE_MODEL = os.environ.get("ASSEMBLE_ESCALATE_MODEL", "claude-sonnet-5")
 # so these two native CLI flags are the cost-safety equivalent --
 # `--max-budget-usd` is a hard dollar ceiling per invocation, `--effort low`
 # asks the model itself to do less work. Applied together with a dummy
-# prompt and skipped escalation (see src/claude_cli_subprocess/stage1.py).
+# prompt and skipped escalation (see src/claude_cli_subprocess/stage1_cli.py).
 #
 # 0.10, not 0.02: confirmed live (Stage 2 pilot verification) that a
 # single dev-mode `claude -p` session has a cost floor somewhere above
@@ -121,7 +121,7 @@ DEV_TOKEN_SAVER_MAX_BUDGET_USD = os.environ.get("DEV_TOKEN_SAVER_MAX_BUDGET_USD"
 DEV_TOKEN_SAVER_EFFORT = os.environ.get("DEV_TOKEN_SAVER_EFFORT", "low")
 
 # ---------------------------------------------------------------------------
-# claude CLI settings for Stage 2 (src/claude_cli_subprocess/stage2.py).
+# claude CLI settings for Stage 2 (src/claude_cli_subprocess/stage2_cli.py).
 # Additive only -- GENERATOR_MODEL/MAX_TURNS/MAX_ATTEMPTS above stay
 # untouched; those belong to direct_api/ and agents/, not this module.
 # ---------------------------------------------------------------------------

@@ -2,20 +2,20 @@
 
 ## Why this document exists
 
-Stage 2 (note generation) currently runs as **one Sonnet model in a single multi-turn loop** (`src/func_generate_notes.py::run_generate`, up to `MAX_TURNS=200`), handed a flat list of 10 generic tools (`AGENT_TOOLS`) — including a generic `tool_bash` that allowlists `python3/node/soffice/mkdir/ls/cat/cp/mv`. The model itself decides, turn by turn, whether to ingest source PDFs, author `content.json`/`figures.json`, render figures, compile the `.docx`, or run QA scripts — all by shelling out through that one bash tool inside one growing conversation.
+Stage 2 (note generation) currently runs as **one Sonnet model in a single multi-turn loop** (`src/stage2_api.py::run_generate`, up to `MAX_TURNS=200`), handed a flat list of 10 generic tools (`AGENT_TOOLS`) — including a generic `tool_bash` that allowlists `python3/node/soffice/mkdir/ls/cat/cp/mv`. The model itself decides, turn by turn, whether to ingest source PDFs, author `content.json`/`figures.json`, render figures, compile the `.docx`, or run QA scripts — all by shelling out through that one bash tool inside one growing conversation.
 
 **Premise correction:** there is no literal `claude` CLI subprocess anywhere in this repo (`requirements.txt` only lists `anthropic`, `pypdf`, `python-docx`, `python-dotenv`, `openpyxl`). What this document rejects is the pattern above — one generalist agent improvising its own tool sequencing via a bash escape hatch — and replaces it with a true multi-agent graph: an explicit orchestrator plus specialized agents, each with a narrow, typed toolset instead of a bash shell.
 
 Two additional findings, confirmed by reading the code directly, that this migration must account for:
 
-- **Bug:** `load_skill_prompt()` (`src/func_generate_notes.py:65`) reads `templates/study-notes-skill.md`. That file **does not exist** — `templates/` contains only `study-notes.skill` (a 79 KB ZIP archive) and `_archived_/`. Stage 2 today silently falls back to a minimal hardcoded prompt and never loads the real `SKILL.md`, tool scripts, schemas, or worked example packaged inside the ZIP. **Decision (approved 2026-07-31): this fix lands as a separate prerequisite patch, before any `src/agents/` work begins** — see "Prerequisite Patch" below. Everything in this document assumes that fix is already in place.
-- `python-docx` (`import docx as _docx` in `func_assemble_chapters.py`, used at line ~132) is genuinely in use — for reading `.docx` source materials during Stage 1 triage/extraction. It has nothing to do with final document compilation (that's `lib/build.js` + the Node `docx` npm package) and should not be removed.
+- **Bug:** `load_skill_prompt()` (`src/stage2_api.py:65`) reads `templates/study-notes-skill.md`. That file **does not exist** — `templates/` contains only `study-notes.skill` (a 79 KB ZIP archive) and `_archived_/`. Stage 2 today silently falls back to a minimal hardcoded prompt and never loads the real `SKILL.md`, tool scripts, schemas, or worked example packaged inside the ZIP. **Decision (approved 2026-07-31): this fix lands as a separate prerequisite patch, before any `src/agents/` work begins** — see "Prerequisite Patch" below. Everything in this document assumes that fix is already in place.
+- `python-docx` (`import docx as _docx` in `stage1_api.py`, used at line ~132) is genuinely in use — for reading `.docx` source materials during Stage 1 triage/extraction. It has nothing to do with final document compilation (that's `lib/build.js` + the Node `docx` npm package) and should not be removed.
 
 ---
 
 ## Prerequisite Patch (lands first, separate from this migration)
 
-Fix `load_skill_prompt()` in `src/func_generate_notes.py` to unzip `templates/study-notes.skill` and read `SKILL.md` from inside the archive, instead of reading the nonexistent flat `templates/study-notes-skill.md`. Preserve the existing fallback-to-minimal-prompt behavior for the genuinely-missing-file case (defense in depth), but the primary path must resolve to the real ZIP contents. This is a small, independent, easily-verified change — ship and verify it (confirm the real `SKILL.md` text now reaches the system prompt in a `--live` run) before starting the `src/agents/` work, since `src/agents/prompts.py` is written assuming correct ZIP-loading already exists.
+Fix `load_skill_prompt()` in `src/stage2_api.py` to unzip `templates/study-notes.skill` and read `SKILL.md` from inside the archive, instead of reading the nonexistent flat `templates/study-notes-skill.md`. Preserve the existing fallback-to-minimal-prompt behavior for the genuinely-missing-file case (defense in depth), but the primary path must resolve to the real ZIP contents. This is a small, independent, easily-verified change — ship and verify it (confirm the real `SKILL.md` text now reaches the system prompt in a `--live` run) before starting the `src/agents/` work, since `src/agents/prompts.py` is written assuming correct ZIP-loading already exists.
 
 The `templates/study-notes.skill` ZIP already contains non-trivial, validated logic that must be **wrapped as tools, not rewritten**:
 
@@ -45,27 +45,27 @@ All of these are deterministic Python/Node scripts with structured JSON/exit-cod
 
 ### Rollout wrapper: all new work lands in new files; legacy implementation stays untouched
 
-**Decision (2026-07-31):** none of the new multi-agent logic modifies `src/func_generate_notes.py` or `src/func_assemble_chapters.py` in place. Both stay **byte-for-byte unchanged** — including `AGENT_TOOLS`, `execute_tool()`, `_truncate_text_blocks()`, `run_router()`, and `llm_route()` — so the current monolithic-loop behavior remains fully intact and callable at all times. Every new component described below (`src/agents/*`) is net-new code.
+**Decision (2026-07-31):** none of the new multi-agent logic modifies `src/stage2_api.py` or `src/stage1_api.py` in place. Both stay **byte-for-byte unchanged** — including `AGENT_TOOLS`, `execute_tool()`, `_truncate_text_blocks()`, `run_router()`, and `llm_route()` — so the current monolithic-loop behavior remains fully intact and callable at all times. Every new component described below (`src/agents/*`) is net-new code.
 
 A new dispatcher, `src/agents/dispatch.py`, exposes two functions with the exact same signatures as today's entry points, and chooses at call time which implementation actually runs:
 
 ```python
 def generate_notes(target_dir: Path, live_mode: bool, verbose: bool) -> int:
-    """Same signature/return as func_generate_notes.run_generate(). Dispatches to
+    """Same signature/return as stage2_api.run_generate(). Dispatches to
     the legacy loop or the new graph based on config.STAGE2_IMPL."""
     if config.STAGE2_IMPL == "graph":
         from src.agents.stage2_graph import run_stage2_chapter
         return run_stage2_chapter(target_dir, live_mode)
-    from src.func_generate_notes import run_generate
+    from src.stage2_api import run_generate
     return run_generate(target_dir, live_mode, verbose)
 
 def route_file(path: Path, buckets: list[str], prior: dict | None) -> tuple[list[dict], bool, str]:
-    """Same signature/return as func_assemble_chapters.llm_route(). Dispatches to
+    """Same signature/return as stage1_api.llm_route(). Dispatches to
     the legacy router or the new Stage 1 graph based on config.STAGE1_IMPL."""
     if config.STAGE1_IMPL == "graph":
         from src.agents.stage1_graph import route_one_file
         return route_one_file(path, buckets, prior)
-    from src.func_assemble_chapters import llm_route
+    from src.stage1_api import llm_route
     return llm_route(path, buckets, prior)
 ```
 
@@ -73,13 +73,13 @@ def route_file(path: Path, buckets: list[str], prior: dict | None) -> tuple[list
 
 ### Stage 1 — Triage/Extraction swarm
 
-Implemented entirely in new files (`src/agents/stage1_graph.py`), reachable via the dispatcher above; `src/func_assemble_chapters.py`'s existing `run_router()`/`llm_route()` are left untouched as the `"legacy"` path. This is a light-touch change: Stage 1 is already one cheap, tool-forced Haiku call per file, so the new path becomes a small LangGraph graph rather than a fleet of independent agents.
+Implemented entirely in new files (`src/agents/stage1_graph.py`), reachable via the dispatcher above; `src/stage1_api.py`'s existing `run_router()`/`llm_route()` are left untouched as the `"legacy"` path. This is a light-touch change: Stage 1 is already one cheap, tool-forced Haiku call per file, so the new path becomes a small LangGraph graph rather than a fleet of independent agents.
 
 - **`extract_node`** (deterministic, no LLM) — wraps the existing `extract_content()` snippet extraction (PDF/`.docx`/text) verbatim.
 - **`triage_node`** (Haiku, `TRIAGE_MODEL`) — the same tool-forced call as today, using the same `ROUTER_TOOL` / `route_file` schema. No change to the classification logic, just formalized as a graph node.
 - **`reconcile_node`** (deterministic) — wraps today's `_parse_matches()` plus the disagreement/park-for-review branching that currently lives inline in `run_assemble()`'s Stage A/B loops. This makes "confident disagreement → park for review" and "router unavailable → filename fallback" (`limited=True`) explicit conditional edges instead of duplicated nested `if` statements.
 
-File-system side effects (`safe_copy`, `park_for_review`, `write_sources`, `_prev/` archival) stay in `func_assemble_chapters.py`'s existing outer loop, untouched. The graph itself only returns a routing *decision* (matches + confidence + disagreement flag) with the same shape as today's `llm_route()` return value, so `dispatch.route_file()` is a thin pass-through (decision approved 2026-07-31, see "Resolved Decisions" below).
+File-system side effects (`safe_copy`, `park_for_review`, `write_sources`, `_prev/` archival) stay in `stage1_api.py`'s existing outer loop, untouched. The graph itself only returns a routing *decision* (matches + confidence + disagreement flag) with the same shape as today's `llm_route()` return value, so `dispatch.route_file()` is a thin pass-through (decision approved 2026-07-31, see "Resolved Decisions" below).
 
 ```python
 def route_one_file(path: Path, buckets: list[str], prior: dict | None) -> tuple[list[dict], bool, str]:
@@ -89,7 +89,7 @@ def route_one_file(path: Path, buckets: list[str], prior: dict | None) -> tuple[
 
 ### Stage 2 — Orchestrator
 
-New module `src/agents/stage2_graph.py`, reachable via `src/agents/dispatch.py` when `STAGE2_IMPL="graph"`. `src/func_generate_notes.py`'s existing monolithic loop is left untouched as the `"legacy"` path. A LangGraph `StateGraph[Stage2State]` implements the new path.
+New module `src/agents/stage2_graph.py`, reachable via `src/agents/dispatch.py` when `STAGE2_IMPL="graph"`. `src/stage2_api.py`'s existing monolithic loop is left untouched as the `"legacy"` path. A LangGraph `StateGraph[Stage2State]` implements the new path.
 
 ```python
 class Stage2State(TypedDict):
@@ -299,8 +299,8 @@ langgraph>=0.2.0
 - `tests/test_dispatch.py` — asserts `dispatch.generate_notes`/`dispatch.route_file` call the correct implementation for each value of `STAGE1_IMPL`/`STAGE2_IMPL`
 
 **Unchanged (by design — this is the point of the rollout wrapper):**
-- `src/func_generate_notes.py` — including `AGENT_TOOLS`, `execute_tool()`, `_truncate_text_blocks()`, the mock-mode branch, and the live-mode turn loop. Remains fully callable as the `"legacy"` path.
-- `src/func_assemble_chapters.py` — including `run_router()`, `llm_route()`, `ROUTER_TOOL`, and the Stage A/B loop structure (`park_for_review`, `write_sources`, `safe_copy`). Remains fully callable as the `"legacy"` path.
+- `src/stage2_api.py` — including `AGENT_TOOLS`, `execute_tool()`, `_truncate_text_blocks()`, the mock-mode branch, and the live-mode turn loop. Remains fully callable as the `"legacy"` path.
+- `src/stage1_api.py` — including `run_router()`, `llm_route()`, `ROUTER_TOOL`, and the Stage A/B loop structure (`park_for_review`, `write_sources`, `safe_copy`). Remains fully callable as the `"legacy"` path.
 - `src/func_tools_and_utils.py` — `tool_convert_to_png`, `tool_view_image`, `tool_view_pdf_page`, `_text_block`, `classify_api_error`, `TokenTracker` are all reused as-is (imported, not modified) by the new scoped tool wrappers in `src/agents/tools.py`.
 
 **Modify (additive only — config/wiring, not logic):**
@@ -368,7 +368,7 @@ This is a new dependency in a project with zero framework dependencies today bey
 
 ## Resolved Decisions (formerly Open Questions) — 2026-07-31
 
-1. **Stage 1 side effects:** `reconcile_node` returns a decision only (matches + confidence + disagreement flag). `park_for_review`, `safe_copy`, and `write_sources` stay in `func_assemble_chapters.py`'s existing outer loop — untouched, per the rollout-wrapper decision above.
+1. **Stage 1 side effects:** `reconcile_node` returns a decision only (matches + confidence + disagreement flag). `park_for_review`, `safe_copy`, and `write_sources` stay in `stage1_api.py`'s existing outer loop — untouched, per the rollout-wrapper decision above.
 2. **QA→Author retry payload:** raw structured JSON, with light Python-side triage (highest-severity/blocking gate failures surfaced first, full detail attached) — no natural-language synthesis, no LLM call in QA.
 3. **Figure self-retry:** none. Every figure problem always bounces back to Author to edit `figures.json`'s source description; Figure's own reasoning never goes beyond "did the render succeed, yes/no."
 4. **Checkpointer backend:** LangGraph's default `SqliteSaver` (`state/graph-checkpoints/<chapter>.sqlite`) is the resume source of truth, **plus** a debug-dump step: `make_agent_node`'s wrapper writes the current `Stage2State` as plain JSON to `state/progress/<chapter>_debug.json` after every node, preserving the "`cat` the state file to debug" workflow as an inspection aid (never read back on resume).

@@ -5,8 +5,8 @@ code and this folder's new multi-agent flowcharts.
 WHY THIS FILE EXISTS
 ----------------------
 Rather than replace the old code outright, this project keeps BOTH
-versions working side by side: the old code (src/func_generate_notes.py
-and src/func_assemble_chapters.py) is left completely unchanged, and every
+versions working side by side: the old code (src/stage2_api.py
+and src/stage1_api.py) is left completely unchanged, and every
 new "agent" implementation lives only in this src/agents/ folder. The two
 functions below are the only place in the whole project that decides,
 each time Stage 1 or Stage 2 needs to run, WHICH of the two versions
@@ -45,7 +45,7 @@ from src.func_tools_and_utils import logger
 
 def generate_notes(target_dir: Path = None, live_mode: bool = False, verbose: bool = False, impl: str = None) -> int:
     """Stage 2's switch. Same inputs and return value as the old
-    run_generate() in func_generate_notes.py (a plain integer exit code --
+    run_generate() in stage2_api.py (a plain integer exit code --
     see run_stage2_chapter's docstring in stage2_graph.py for exactly what
     each code means), so main.py's call site doesn't need to change
     depending on which implementation actually runs.
@@ -65,24 +65,24 @@ def generate_notes(target_dir: Path = None, live_mode: bool = False, verbose: bo
         return run_stage2_chapter(target_dir, live_mode)
     elif impl == 'subprocess':
         logger.info('Stage 2: using SUBPROCESS implementation (claude CLI)')
-        from src.claude_cli_subprocess.stage2 import run_stage2_chapter as cli_run_stage2_chapter
+        from src.claude_cli_subprocess.stage2_cli import run_stage2_chapter as cli_run_stage2_chapter
         return cli_run_stage2_chapter(target_dir, live_mode)
     else:
         logger.info('Stage 2: using LEGACY implementation (monolithic loop)')
-        from src.direct_api.func_generate_notes import run_generate
+        from src.direct_api.stage2_api import run_generate
         return run_generate(target_dir, live_mode, verbose)
 
 
 def route_file(path: Path, buckets, prior=None, tracker=None, impl: str = None):
     """Stage 1's switch. Same inputs and return value as the old
-    llm_route() in func_assemble_chapters.py: a (matches, limited,
+    llm_route() in stage1_api.py: a (matches, limited,
     model_used) tuple -- see route_one_file's docstring in
     stage1_graph.py for exactly what each of those means.
 
     `impl`, if given ("legacy" or "graph"), is authoritative and comes from
     main.py's `--stage1-impl` CLI flag by way of run_assemble()'s
     stage1_impl parameter -- a CLI choice threaded all the way down to
-    both of func_assemble_chapters.py's routing call sites, not something
+    both of stage1_api.py's routing call sites, not something
     that requires editing this file or an env var. `impl=None` (the
     default) falls back to config.STAGE1_IMPL, kept only so callers that
     don't care (tests, ad-hoc scripts) can still rely on the env-var
@@ -95,9 +95,9 @@ def route_file(path: Path, buckets, prior=None, tracker=None, impl: str = None):
         return route_one_file(path, buckets, prior)
     elif impl == 'subprocess':
         logger.info('Stage 1: using SUBPROCESS implementation (claude CLI)')
-        from src.claude_cli_subprocess.stage1 import route_file as cli_route_file
+        from src.claude_cli_subprocess.stage1_cli import route_file as cli_route_file
         return cli_route_file(path, buckets, prior, tracker)
     else:
         logger.info('Stage 1: using LEGACY implementation')
-        from src.direct_api.func_assemble_chapters import llm_route
+        from src.direct_api.stage1_api import llm_route
         return llm_route(path, buckets, prior, tracker)

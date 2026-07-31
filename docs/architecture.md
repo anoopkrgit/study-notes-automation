@@ -26,16 +26,16 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
    ▼
 4. main.py (Python Engine -- dispatches to ONE of THREE parallel implementations per stage)
    │
-   ├─► STAGE 1: Chapter Folder Assembler                    [src/direct_api/func_assemble_chapters.py::run_assemble()]
+   ├─► STAGE 1: Chapter Folder Assembler                    [src/direct_api/stage1_api.py::run_assemble()]
    │   │  [Env Stabilization]
    │   ├─► Load `ANTHROPIC_API_KEY` from `~/.anthropic_env` & SHA-256 state (`state/assemble-state.json`)
    │   ├─► Read incoming files from `Telegram-A27-Download/` & `Collected-Study-Materials/`
    │   │  [Per-file routing -- dispatch.route_file(impl), src/agents/dispatch.py]
-   │   ├─ --stage1-impl legacy (default) ─► llm_route()        [src/direct_api/func_assemble_chapters.py]
+   │   ├─ --stage1-impl legacy (default) ─► llm_route()        [src/direct_api/stage1_api.py]
    │   │                                      └─► run_router() ─► client.messages.create()          ⟵ Anthropic API
    │   ├─ --stage1-impl graph ────────────► route_one_file()    [src/agents/stage1_graph.py]
    │   │                                      └─► extract/triage/reconcile nodes ─► client.messages.create()   ⟵ Anthropic API
-   │   ├─ --stage1-impl subprocess ───────► route_file()        [src/claude_cli_subprocess/stage1.py]
+   │   ├─ --stage1-impl subprocess ───────► route_file()        [src/claude_cli_subprocess/stage1_cli.py]
    │   │                                      └─► run_router() ─► subprocess.run(["claude","-p",...])   ⟵ claude CLI
    │   │  [Env Stabilization]
    │   └─► Copy files into `AI-Chapter-Notes/<Folder>/` & update `_hold` / SHA-256 state
@@ -44,11 +44,11 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
        │  [Env Stabilization]
        ├─► Select first folder missing `.docx`, `_notes_done`, `_hold`, or `_notes_FAILED.txt`
        │  [API/CLI Execution]  (Mock/no-llm mode: metadata-only check, 0 body tokens)
-       ├─ --stage2-impl legacy (default) ─► run_generate()      [src/direct_api/func_generate_notes.py]
+       ├─ --stage2-impl legacy (default) ─► run_generate()      [src/direct_api/stage2_api.py]
        │                                      └─► tool-call loop (up to config.MAX_TURNS) ─► client.messages.create()   ⟵ Anthropic API
        ├─ --stage2-impl graph ────────────► run_stage2_chapter() [src/agents/stage2_graph.py]
        │                                      └─► author/figure/compiler nodes [src/agents/base.py] ─► client.messages.create()   ⟵ Anthropic API
-       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2.py]
+       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2_cli.py]
                                               └─► run_claude_cli() ─► subprocess.run(["claude","-p",...])   ⟵ claude CLI
        │  [Env Stabilization]
        └─► Confirm `.docx` file written to disk & drop `_notes_done` completion marker (llm-full mode only)

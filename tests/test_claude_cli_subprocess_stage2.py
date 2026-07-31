@@ -16,7 +16,7 @@ import settings as config
 from src.claude_cli_subprocess.common import build_claude_env
 from src.func_tools_and_utils import EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 
-from src.claude_cli_subprocess.stage2 import (
+from src.claude_cli_subprocess.stage2_cli import (
     run_stage2_chapter, run_claude_cli, classify_cli_result, sync_skill_package
 )
 
@@ -50,7 +50,7 @@ def test_run_stage2_chapter_dev_token_saver_uses_dummy_prompt_and_flags(monkeypa
         # We need expected_docx to exist to get EXIT_OK and not EXIT_FATAL
         (target / "chapter1.docx").touch()
         
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             run_stage2_chapter(target_dir=target, live_mode=True)
         
         mock_run.assert_called_once()
@@ -92,7 +92,7 @@ def test_success_marker_requires_docx_to_actually_exist(mock_dirs):
         mock_result.stderr = ""
         mock_run.return_value = mock_result
 
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             result = run_stage2_chapter(target_dir=target, live_mode=True)
 
         assert result == EXIT_FATAL
@@ -112,7 +112,7 @@ def test_success_marker_written_when_docx_exists(mock_dirs):
 
         (target / "chapter1.docx").touch()
         
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             result = run_stage2_chapter(target_dir=target, live_mode=True)
         
         assert result == EXIT_OK
@@ -135,7 +135,7 @@ def test_real_run_gets_full_tool_list_not_empty(mock_dirs):
 
         (target / "chapter1.docx").touch()
 
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             run_stage2_chapter(target_dir=target, live_mode=True)
 
         args, kwargs = mock_run.call_args
@@ -159,7 +159,7 @@ def test_nonzero_unparseable_returncode_is_retryable(mock_dirs):
         mock_result.stderr = ""
         mock_run.return_value = mock_result
 
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             result = run_stage2_chapter(target_dir=target, live_mode=True)
 
         assert result == EXIT_RATE_LIMITED
@@ -170,7 +170,7 @@ def test_timeout_is_retryable(mock_dirs):
     target.mkdir(parents=True, exist_ok=True)
     
     with patch('subprocess.run', side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=3600)):
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             result = run_stage2_chapter(target_dir=target, live_mode=True)
         
         assert result == EXIT_RATE_LIMITED
@@ -187,7 +187,7 @@ def test_usage_limit_error_is_retryable(mock_dirs):
         mock_result.stderr = ""
         mock_run.return_value = mock_result
 
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             result = run_stage2_chapter(target_dir=target, live_mode=True)
 
         assert result == EXIT_RATE_LIMITED
@@ -206,7 +206,7 @@ def test_unrecognized_error_is_fatal_not_retryable(mock_dirs):
         mock_result.stderr = ""
         mock_run.return_value = mock_result
 
-        with patch('src.claude_cli_subprocess.stage2.sync_skill_package'):
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             result = run_stage2_chapter(target_dir=target, live_mode=True)
 
         assert result == EXIT_FATAL
@@ -216,13 +216,13 @@ def test_unexpected_exception_degrades_to_fatal_not_a_crash(mock_dirs):
     """Any failure outside run_claude_cli()'s own try/except (e.g. a
     corrupted skill package, a permissions error) must produce a clean
     FAILMARK + EXIT_FATAL, matching the same top-level resilience pattern
-    direct_api.func_generate_notes.run_generate() and
+    direct_api.stage2_api.run_generate() and
     agents.stage2_graph.run_stage2_chapter() both use -- never an uncaught
     traceback that kills the whole nightly process."""
     target = mock_dirs / "chapter1"
     target.mkdir(parents=True, exist_ok=True)
 
-    with patch('src.claude_cli_subprocess.stage2.sync_skill_package',
+    with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package',
                side_effect=RuntimeError("corrupted skill zip")):
         result = run_stage2_chapter(target_dir=target, live_mode=True)
 

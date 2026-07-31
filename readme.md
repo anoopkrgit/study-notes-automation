@@ -32,8 +32,8 @@ study-notes-automation/
 │   └── remount-gdrive              # Sudo-passwordless Drive remount helper
 ├── src/
 │   ├── main.py                      # CLI entrypoint (--run-assemble, --run-generate, --doctor)
-│   ├── func_assemble_chapters.py    # Stage 1 folder assembler module
-│   ├── func_generate_notes.py       # Stage 2 agentic generator module
+│   ├── stage1_api.py    # Stage 1 folder assembler module
+│   ├── stage2_api.py       # Stage 2 agentic generator module
 │   ├── func_classify_and_rename.py  # Chapter taxonomy classifier
 │   └── func_tools_and_utils.py      # Shared tools, hashing & logging utilities
 ├── templates/

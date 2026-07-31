@@ -93,7 +93,7 @@ token-efficiency answer — not prompt caching bolted onto the old hand-rolled l
 
 ## Architecture: before → after
 
-**Before:** `func_generate_notes.py` builds a system prompt from `templates/study-notes-skill.md`,
+**Before:** `stage2_api.py` builds a system prompt from `templates/study-notes-skill.md`,
 then runs a hand-rolled loop calling `client.messages.create(...)` up to `MAX_TURNS=200`
 times against a custom `AGENT_TOOLS` schema, checkpointing full message history after every
 turn.
@@ -142,7 +142,7 @@ before writing any of the wrapper code around it.
 
 ## File-by-file changes
 
-### `src/func_generate_notes.py`
+### `src/stage2_api.py`
 - **Keep unchanged:** `select_target_chapter()`, the MOCK-mode zero-cost contract, the
   `expected_docx.exists()` truth-check philosophy, `EXIT_OK`/`EXIT_RATE_LIMITED`/`EXIT_FATAL`
   + `write_retry_epoch()`, `MARKER`/`FAILMARK` semantics.

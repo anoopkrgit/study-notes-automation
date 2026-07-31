@@ -16,12 +16,12 @@ implementation via `--stage1-impl`/`--stage2-impl`. Today: `legacy` (direct Anth
 calls) and `graph` (LangGraph multi-agent). This plan adds a third, parallel implementation —
 `subprocess` — that invokes the `claude` CLI as a subprocess, billed against a Claude
 subscription instead of a metered API key. **All three implementations are co-equal and
-permanent, not a migration that retires the other two.** `direct_api/func_generate_notes.py`
+permanent, not a migration that retires the other two.** `direct_api/stage2_api.py`
 (Stage 2's SDK implementation) is not touched, rewritten, or stripped by this plan — it stays
 fully intact and independently selectable via `--stage2-impl legacy`.
 
 Separately, Stage 2's original motivation (from the superseded doc) still applies to the new
-`claude_cli_subprocess/stage2.py` once built: Stage 2 has never run in `--live` mode for real on this
+`claude_cli_subprocess/stage2_cli.py` once built: Stage 2 has never run in `--live` mode for real on this
 machine, and the user wants to avoid a Stage-1-style cost surprise by using CLI/subscription
 billing rather than metered per-token API calls for its first real run. The engineered skill
 package (`templates/study-notes.skill` — `SKILL.md` + `tools/` + `lib/` + `schema/` +
@@ -48,51 +48,51 @@ CLI/subscription execution both cheaper and higher-quality than the old hand-rol
    design in this doc (see `docs/claude-cli-subprocess-stage2-implementation-plan.md` for the executed implementation).
 7. **`--stage2-impl subprocess` is now a real, fully working choice.** The `parser.error()`
    fail-fast in `main.py` and the `NotImplementedError` stub in
-   `src/claude_cli_subprocess/stage2.py` (both defense-in-depth against the module not existing
+   `src/claude_cli_subprocess/stage2_cli.py` (both defense-in-depth against the module not existing
    yet) have been removed now that a real implementation is behind them — see
    `docs/claude-cli-subprocess-stage2-implementation-plan.md`.
 8. **`src/assemble_chapters_subtask.py` gets deleted** once its logic is ported into
-   `src/claude_cli_subprocess/stage1.py` and tests pass — confirm before deleting, don't do it silently.
+   `src/claude_cli_subprocess/stage1_cli.py` and tests pass — confirm before deleting, don't do it silently.
 
 ## What moves, what stays
 
 | File | Action |
 |---|---|
-| `src/func_assemble_chapters.py` | → `src/direct_api/func_assemble_chapters.py` |
-| `src/func_generate_notes.py` | → `src/direct_api/func_generate_notes.py` (content unchanged — see "Corrections" below) |
+| `src/stage1_api.py` | → `src/direct_api/stage1_api.py` |
+| `src/stage2_api.py` | → `src/direct_api/stage2_api.py` (content unchanged — see "Corrections" below) |
 | `src/func_tools_and_utils.py` | **stays in `src/`** — shared by `direct_api/`, `agents/`, and `claude_cli_subprocess/` alike (logger, sha256, is_ignorable, load_state/save_state, classify_api_error, TokenTracker, write_retry_epoch, EXIT_* constants, tool_* implementations) |
-| `src/func_classify_and_rename.py` | **stays in `src/`** — used by `direct_api/func_assemble_chapters.py` today AND by the new `claude_cli_subprocess/stage1.py` |
+| `src/func_classify_and_rename.py` | **stays in `src/`** — used by `direct_api/stage1_api.py` today AND by the new `claude_cli_subprocess/stage1_cli.py` |
 | `src/agents/*` | unchanged |
-| `src/assemble_chapters_subtask.py` | ported into `src/claude_cli_subprocess/stage1.py`, then deleted (pending confirmation) |
+| `src/assemble_chapters_subtask.py` | ported into `src/claude_cli_subprocess/stage1_cli.py`, then deleted (pending confirmation) |
 
 New: `src/direct_api/__init__.py`, `src/claude_cli_subprocess/__init__.py`, `src/claude_cli_subprocess/common.py`,
-`src/claude_cli_subprocess/stage1.py`, `src/claude_cli_subprocess/stage2.py`.
+`src/claude_cli_subprocess/stage1_cli.py`, `src/claude_cli_subprocess/stage2_cli.py`.
 
 ## Import edits required by the move
 
-- `src/main.py`: `from src.func_assemble_chapters import run_assemble` →
-  `from src.direct_api.func_assemble_chapters import run_assemble`
+- `src/main.py`: `from src.stage1_api import run_assemble` →
+  `from src.direct_api.stage1_api import run_assemble`
 - `src/agents/dispatch.py` (lazy import inside `generate_notes()`, "legacy" branch):
-  `from src.func_generate_notes import run_generate` →
-  `from src.direct_api.func_generate_notes import run_generate`
+  `from src.stage2_api import run_generate` →
+  `from src.direct_api.stage2_api import run_generate`
 - `src/agents/dispatch.py` (lazy import inside `route_file()`, "legacy" branch):
-  `from src.func_assemble_chapters import llm_route` →
-  `from src.direct_api.func_assemble_chapters import llm_route`
+  `from src.stage1_api import llm_route` →
+  `from src.direct_api.stage1_api import llm_route`
 - `src/agents/stage2_graph.py` (lazy import inside `run_stage2_chapter()`):
-  `from src.func_generate_notes import select_target_chapter` →
-  `from src.direct_api.func_generate_notes import select_target_chapter` — read this file's
+  `from src.stage2_api import select_target_chapter` →
+  `from src.direct_api.stage2_api import select_target_chapter` — read this file's
   exact current line before editing, not independently re-verified in the last research pass.
 - Everything else (imports of `func_tools_and_utils`/`func_classify_and_rename` inside the
   moved files, and `agents/tools.py`, `stage1_graph.py`, `stage2_graph.py`'s own imports of
   those two shared modules) is **unchanged** — those two files aren't moving.
 
-Test files needing import-path edits: `tests/test_utils.py` (`import src.func_generate_notes
-as fgn` / `from src.func_generate_notes import select_target_chapter, run_generate` / `import
-src.func_assemble_chapters as fac` → `src.direct_api.func_generate_notes` /
-`src.direct_api.func_assemble_chapters`); `tests/test_dispatch.py` (mock `patch()` string
-targets `'src.func_generate_notes.run_generate'` and `'src.func_assemble_chapters.llm_route'`
-→ `'src.direct_api.func_generate_notes.run_generate'` /
-`'src.direct_api.func_assemble_chapters.llm_route'`). `tests/test_classify_and_rename.py` and
+Test files needing import-path edits: `tests/test_utils.py` (`import src.stage2_api
+as fgn` / `from src.stage2_api import select_target_chapter, run_generate` / `import
+src.stage1_api as fac` → `src.direct_api.stage2_api` /
+`src.direct_api.stage1_api`); `tests/test_dispatch.py` (mock `patch()` string
+targets `'src.stage2_api.run_generate'` and `'src.stage1_api.llm_route'`
+→ `'src.direct_api.stage2_api.run_generate'` /
+`'src.direct_api.stage1_api.llm_route'`). `tests/test_classify_and_rename.py` and
 `tests/test_stage2_graph.py` are unaffected.
 
 ---
@@ -106,7 +106,7 @@ The one thing both stages need: `build_claude_env()` returns `os.environ.copy()`
 
 **Billing precedence risk — the single highest-severity item in this whole plan:** a `claude`
 subprocess that inherits `ANTHROPIC_API_KEY` silently bills metered Console instead of the
-subscription — no error, no warning. `src/direct_api/func_assemble_chapters.py` (imported by
+subscription — no error, no warning. `src/direct_api/stage1_api.py` (imported by
 the shared `run_assemble()` orchestration regardless of which `--stage1-impl` is active) calls
 `load_dotenv()` at import time, populating `ANTHROPIC_API_KEY` into `os.environ` — so by the
 time ANY subprocess-mode call happens (Stage 1 today, Stage 2 once built), that key WILL be
@@ -125,13 +125,13 @@ eventual flags (`--add-dir`, `--permission-mode acceptEdits`, `-r <session_id>`,
 skip-permissions at all) are different enough that a shared wrapper now would be premature
 abstraction.
 
-### `stage1.py`
+### `stage1_cli.py`
 
 Ported from `src/assemble_chapters_subtask.py` lines 345-529 (`ROUTER_SCHEMA`, `run_router()`,
 `_parse_matches()`, `llm_route()`), with these deltas:
 - Rename the public entrypoint `llm_route` → `route_file(path, buckets, prior=None,
   tracker=None) -> (matches, limited, model_used)` — matches
-  `direct_api.func_assemble_chapters.llm_route()`'s and `agents.stage1_graph.route_one_file()`'s
+  `direct_api.stage1_api.llm_route()`'s and `agents.stage1_graph.route_one_file()`'s
   exact 3-tuple contract. `tracker` accepted for signature parity but unused (CLI subscription
   billing isn't a per-call token count the way `TokenTracker` expects) — document why in a
   docstring, don't silently drop the param.
@@ -148,7 +148,7 @@ Ported from `src/assemble_chapters_subtask.py` lines 345-529 (`ROUTER_SCHEMA`, `
   reads via an absolute `path` argument in the prompt, just needs a stable valid cwd.
 - Import `is_usage_limit` from `.common` instead of defining it locally.
 
-### `stage2.py` — stub only, for now
+### `stage2_cli.py` — stub only, for now
 
 ```python
 def run_stage2_chapter(target_dir=None, live_mode=False) -> int:
@@ -164,8 +164,8 @@ def run_stage2_chapter(target_dir=None, live_mode=False) -> int:
 ## Stage 2: design (built — see docs/claude-cli-subprocess-stage2-implementation-plan.md for the executed implementation)
 
 Everything below is carried forward from the superseded doc, reconciled to the "new parallel
-`src/claude_cli_subprocess/stage2.py` module" architecture instead of "rewrite
-`direct_api/func_generate_notes.py` in place." **Corrections from the superseded doc are
+`src/claude_cli_subprocess/stage2_cli.py` module" architecture instead of "rewrite
+`direct_api/stage2_api.py` in place." **Corrections from the superseded doc are
 called out explicitly** — see the callout box at the end of this section.
 
 ### Confirmed environment facts
@@ -236,14 +236,14 @@ a subdirectory of `LOCAL_RUNTIME_ROOT`. If not, fallback is syncing into
 installed there today). Resolve this first in the pilot's manual smoke test, before writing
 wrapper code around it.
 
-### `src/claude_cli_subprocess/stage2.py` — functions to build
+### `src/claude_cli_subprocess/stage2_cli.py` — functions to build
 
 - `sync_skill_package() -> Path` — finds newest `templates/*.skill`, extracts to the local
   skill directory if changed, returns that directory's path (for logging, not for hardcoding
   into the prompt).
 - `build_cli_prompt(target_dir, expected_docx) -> str` — short: `/study-notes`, the chapter's
   transcript/supporting folder paths, required output path, same scope framing as
-  `direct_api.func_generate_notes` today (transcripts = spine/non-negotiable, supporting =
+  `direct_api.stage2_api` today (transcripts = spine/non-negotiable, supporting =
   enrichment-only). No tool-name references — the skill's own pipeline instructions take over.
 - `build_claude_env() -> dict` — **reuse `src/claude_cli_subprocess/common.py::build_claude_env()`**,
   don't redefine it here (see Corrections below).
@@ -266,7 +266,7 @@ wrapper code around it.
   `{"session_id", "attempts"}` from a progress file if present; on resume, send a short
   continuation prompt instead of the full prompt; call `run_claude_cli_subprocess()`; run the
   truth-check; write `MARKER`/`FAILMARK` or persist progress + `write_retry_epoch()` — same
-  contract shape as `direct_api.func_generate_notes.run_generate()` and
+  contract shape as `direct_api.stage2_api.run_generate()` and
   `agents.stage2_graph.run_stage2_chapter()`.
 
 ### Config additions for Stage 2 (add when built — additive, nothing removed)
@@ -294,7 +294,7 @@ existing function in that file.
   modified by this project.
 - `templates/study-notes-skill.md` — candidate for removal once nothing reads it anymore.
   Grep the repo once more before deleting (readme's directory tree references it, and
-  `direct_api/func_generate_notes.py` — the still-live legacy implementation — may still read
+  `direct_api/stage2_api.py` — the still-live legacy implementation — may still read
   it via `load_skill_prompt()`; **do not remove this until confirming `direct_api` doesn't
   depend on it**, since that implementation is not being touched by this plan).
 - `templates/study-notes-skill-improvement-brief.md` — read before deciding; likely harmless
@@ -339,14 +339,14 @@ specific instructions from that doc **do not apply** and must not be followed li
   import exactly those functions. They stay. Nothing is removed from
   `func_tools_and_utils.py`.
 - ~~"Remove `GENERATOR_MODEL` (superseded by `CLAUDE_MODEL`), `MAX_TURNS` (superseded by
-  `CLAUDE_CLI_TIMEOUT_SECONDS`)"~~ — **wrong now.** `direct_api/func_generate_notes.py` (the
+  `CLAUDE_CLI_TIMEOUT_SECONDS`)"~~ — **wrong now.** `direct_api/stage2_api.py` (the
   legacy implementation) still uses both and stays fully intact. `CLAUDE_MODEL` and
-  `CLAUDE_CLI_TIMEOUT_SECONDS` are purely additive new settings for `claude_cli_subprocess/stage2.py`.
-- ~~"Rewrite `run_generate()`'s LIVE branch [in `func_generate_notes.py`]"~~ — **wrong now.**
-  `direct_api/func_generate_notes.py` is not touched by this plan at all. All of this logic
-  goes into the new `src/claude_cli_subprocess/stage2.py::run_stage2_chapter()` instead.
+  `CLAUDE_CLI_TIMEOUT_SECONDS` are purely additive new settings for `claude_cli_subprocess/stage2_cli.py`.
+- ~~"Rewrite `run_generate()`'s LIVE branch [in `stage2_api.py`]"~~ — **wrong now.**
+  `direct_api/stage2_api.py` is not touched by this plan at all. All of this logic
+  goes into the new `src/claude_cli_subprocess/stage2_cli.py::run_stage2_chapter()` instead.
 - ~~`tests/test_utils.py`: "rewrite `test_run_generate_mock_mode_makes_zero_api_calls`...
-  `fgn.client` no longer exists"~~ — **wrong now**, `fgn` (`direct_api.func_generate_notes`)
+  `fgn.client` no longer exists"~~ — **wrong now**, `fgn` (`direct_api.stage2_api`)
   is unchanged, `fgn.client` still exists. New tests for the subprocess path belong in a new
   `tests/test_claude_cli_subprocess_stage2.py` once that module is built, not as edits to
   `tests/test_utils.py`.
@@ -378,7 +378,7 @@ ESCALATE_MODEL = os.environ.get("ASSEMBLE_ESCALATE_MODEL", "claude-sonnet-5")
 ```
 
 No naming collisions confirmed by reading the full current file. `CONF_MIN` (existing) is
-reused as-is by `stage1.py`. Stage 2's settings (`CLAUDE_MODEL`, `CLAUDE_ALLOWED_TOOLS`, etc.,
+reused as-is by `stage1_cli.py`. Stage 2's settings (`CLAUDE_MODEL`, `CLAUDE_ALLOWED_TOOLS`, etc.,
 listed above) get added when Stage 2 is actually built, not now.
 
 ## `src/main.py` / `src/agents/dispatch.py` diffs
@@ -400,11 +400,11 @@ listed above) get added when Stage 2 is actually built, not now.
   ```python
   elif impl == 'subprocess':
       logger.info('Stage 1: using SUBPROCESS implementation (claude CLI)')
-      from src.claude_cli_subprocess.stage1 import route_file as cli_route_file
+      from src.claude_cli_subprocess.stage1_cli import route_file as cli_route_file
       return cli_route_file(path, buckets, prior, tracker)
   ```
 - `dispatch.py::generate_notes()`: add a matching `elif impl == 'subprocess':` branch calling
-  `src.claude_cli_subprocess.stage2.run_stage2_chapter(target_dir, live_mode)` — keeps the
+  `src.claude_cli_subprocess.stage2_cli.run_stage2_chapter(target_dir, live_mode)` — keeps the
   `NotImplementedError` message defined in exactly one place.
 - Both `dispatch.py` "legacy" branches also update import paths to `src.direct_api.func_*` per
   the move above.
@@ -412,7 +412,7 @@ listed above) get added when Stage 2 is actually built, not now.
 ## New tests (build now, for Stage 1)
 
 `tests/test_dispatch.py`: add `test_route_file_subprocess_mode` (mocks
-`src.claude_cli_subprocess.stage1.route_file`) and `test_generate_notes_subprocess_mode_raises` (asserts
+`src.claude_cli_subprocess.stage1_cli.route_file`) and `test_generate_notes_subprocess_mode_raises` (asserts
 `NotImplementedError`), following the existing `patch('src.agents.dispatch.config')` pattern.
 
 New `tests/test_claude_cli_subprocess_stage1.py`: mock `subprocess.run` (never call the real `claude`
@@ -422,14 +422,14 @@ binary) — JSON envelope parsing, usage-limit detection, launch-failure handlin
 
 (Stage 2 tests — `test_build_claude_env_pops_anthropic_api_key`,
 `test_sync_skill_package_picks_newest_and_skips_unchanged`, `test_classify_cli_result_*`,
-`test_run_generate_live_mode_resume_uses_short_prompt` — get written when `claude_cli_subprocess/stage2.py`
+`test_run_generate_live_mode_resume_uses_short_prompt` — get written when `claude_cli_subprocess/stage2_cli.py`
 is actually built, in a new `tests/test_claude_cli_subprocess_stage2.py`, not as edits to
 `tests/test_utils.py`.)
 
 ## Documentation updates
 
 Not exhaustive line-editing — after the code move, run
-`grep -rn "func_assemble_chapters\|func_generate_notes" --include="*.md" .` and update path
+`grep -rn "stage1_api\|stage2_api" --include="*.md" .` and update path
 references only (not narrative content) in the ~6 files with hits: `readme.md`,
 `docs/agent_migration_walkthrough.md`, `docs/migration-to-agents.md`,
 `docs/skill-integration-plan.md`, `docs/web-enrichment-plan.md`, and this file's own
@@ -456,8 +456,8 @@ python3 -c "
 import sys; from pathlib import Path
 ROOT = Path('.').resolve()
 sys.path.insert(0, str(ROOT / 'config')); sys.path.insert(0, str(ROOT))
-import src.direct_api.func_assemble_chapters, src.direct_api.func_generate_notes
-import src.claude_cli_subprocess.common, src.claude_cli_subprocess.stage1, src.claude_cli_subprocess.stage2
+import src.direct_api.stage1_api, src.direct_api.stage2_api
+import src.claude_cli_subprocess.common, src.claude_cli_subprocess.stage1_cli, src.claude_cli_subprocess.stage2_cli
 import src.agents.dispatch
 print('all imports OK')
 "
@@ -467,7 +467,7 @@ python3 src/main.py --help | grep -A3 "stage1-impl\|stage2-impl"
 python3 src/main.py --stage2-mode llm-full --stage2-impl subprocess; echo "exit code: $?"  # expect parser.error, nonzero, no work started
 
 # 5. Doc-reference grep, before and after edits
-grep -rn "func_assemble_chapters\|func_generate_notes" --include="*.md" .
+grep -rn "stage1_api\|stage2_api" --include="*.md" .
 ```
 
 Manual/live step (not automatable, needs `claude` CLI installed + authenticated): run one real
@@ -491,11 +491,11 @@ Stage 2 wiring smoke test.
 |---|---|---|---|---|
 | `direct_api` (`src/direct_api/`) | Stage 1 already uses cheap `ROUTER_MODEL`; Stage 2 switches to `FIGURE_MODEL` | Stage 1 skips `extract_content()` (real PDF pages); Stage 2 skips `build_user_prompt()`/`load_skill_prompt()` | `max_tokens` capped (150 for Stage 1's forced tool call, 50 for Stage 2) | n/a (Stage 1 has no escalation step) |
 | `agents` (`src/agents/`) | forces `FIGURE_MODEL` for every node | `prompts.py` swaps in a one-line dummy instruction | `max_tokens=50` | n/a |
-| `claude_cli_subprocess` (`src/claude_cli_subprocess/`) | n/a (CLI has no cheap/expensive model split at this layer beyond `ROUTER_MODEL`/`ESCALATE_MODEL`) | `stage1.py` skips the real routing prompt (never points the CLI at a real file) | `--max-budget-usd`/`--effort low` (no SDK `max_tokens` to cap) | escalation to `ESCALATE_MODEL` skipped entirely |
+| `claude_cli_subprocess` (`src/claude_cli_subprocess/`) | n/a (CLI has no cheap/expensive model split at this layer beyond `ROUTER_MODEL`/`ESCALATE_MODEL`) | `stage1_cli.py` skips the real routing prompt (never points the CLI at a real file) | `--max-budget-usd`/`--effort low` (no SDK `max_tokens` to cap) | escalation to `ESCALATE_MODEL` skipped entirely |
 
 New settings: `config.DEV_TOKEN_SAVER_MAX_BUDGET_USD` (default `"0.02"`), `config.DEV_TOKEN_SAVER_EFFORT`
 (default `"low"`) — subprocess-specific, since the CLI has no `max_tokens` equivalent to cap
-directly. When Stage 2 subprocess (`src/claude_cli_subprocess/stage2.py`) is eventually built,
+directly. When Stage 2 subprocess (`src/claude_cli_subprocess/stage2_cli.py`) is eventually built,
 it should follow the same pattern: dummy `/study-notes` prompt that doesn't point at real
 transcripts, plus these same two flags, rather than inventing a new mechanism.
 

@@ -1,4 +1,4 @@
-# Implementation plan: `src/claude_cli_subprocess/stage2.py`
+# Implementation plan: `src/claude_cli_subprocess/stage2_cli.py`
 
 ## Context
 
@@ -6,11 +6,11 @@ The pipeline has three parallel, co-equal implementations of Stage 2 (note gener
 selected via `--stage2-impl {legacy,graph,subprocess}` and dispatched through
 `src/agents/dispatch.py::generate_notes()`:
 
-1. **legacy** (`src/direct_api/func_generate_notes.py::run_generate()`) — direct Anthropic SDK
+1. **legacy** (`src/direct_api/stage2_api.py::run_generate()`) — direct Anthropic SDK
    calls, fully built.
 2. **graph** (`src/agents/stage2_graph.py::run_stage2_chapter()`) — LangGraph multi-agent
    flowchart, fully built.
-3. **subprocess** (`src/claude_cli_subprocess/stage2.py::run_stage2_chapter()`) — invokes the
+3. **subprocess** (`src/claude_cli_subprocess/stage2_cli.py::run_stage2_chapter()`) — invokes the
    `claude` CLI as a subprocess, billed via Claude subscription instead of the metered API key.
    **Currently a 6-line stub that raises `NotImplementedError`.** This is what this plan builds.
 
@@ -26,7 +26,7 @@ re-verified against the actual current repo state (not assumed from the older do
 `claude --version` (2.1.197, confirmed installed), `~/.claude/.credentials.json` (present),
 `templates/study-notes.skill` (79,219 bytes, confirmed present), and the exact current line
 content of `config/settings.py`, `src/main.py`, `src/agents/dispatch.py`, and the sibling
-`src/claude_cli_subprocess/stage1.py`/`common.py`.
+`src/claude_cli_subprocess/stage1_cli.py`/`common.py`.
 
 ## Interface contract this module must honor
 
@@ -35,12 +35,12 @@ content of `config/settings.py`, `src/main.py`, `src/agents/dispatch.py`, and th
 `EXIT_FATAL`=1, from `src/func_tools_and_utils.py`):
 
 - **Chapter selection** (when `target_dir` is `None`): call `select_target_chapter(config.DEFAULT_TARGET_ROOT)`
-  from `src.direct_api.func_generate_notes` — a shared utility, not reimplemented. Return
+  from `src.direct_api.stage2_api` — a shared utility, not reimplemented. Return
   `EXIT_OK` immediately if nothing is ready.
 - **Mock mode** (`live_mode=False`): zero subprocess calls, log clearly, return `EXIT_OK`
   immediately.
 - **`expected_docx = target_dir / f"{target_dir.name}.docx"`** — verified exact naming
-  convention from `direct_api/func_generate_notes.py:288`.
+  convention from `direct_api/stage2_api.py:288`.
 - **Truth-check is mandatory**: `expected_docx.exists()` gates the success marker — a
   self-reported "success" from the CLI is never trusted on its own, including when the CLI's
   own JSON envelope claims success.
@@ -84,7 +84,7 @@ content of `config/settings.py`, `src/main.py`, `src/agents/dispatch.py`, and th
    - The exact JSON envelope shape of `claude -p ... --output-format json`'s stdout (field
      names for `session_id`, cost, success signal). `run_claude_cli()` below parses
      defensively (every field via `.get(...)`, never a hard `KeyError`) and reuses Stage 1's
-     proven line-scan-then-whole-stdout-fallback parsing strategy from `stage1.py::run_router()`.
+     proven line-scan-then-whole-stdout-fallback parsing strategy from `stage1_cli.py::run_router()`.
    Both get resolved in Verification step 1, *before* trusting the wrapper code.
 
 ## `config/settings.py` — insert after the existing Stage 1 "claude CLI settings" block (verified: currently ends right after `DEV_TOKEN_SAVER_EFFORT = ...`)
@@ -92,7 +92,7 @@ content of `config/settings.py`, `src/main.py`, `src/agents/dispatch.py`, and th
 ```python
 
 # ---------------------------------------------------------------------------
-# claude CLI settings for Stage 2 (src/claude_cli_subprocess/stage2.py).
+# claude CLI settings for Stage 2 (src/claude_cli_subprocess/stage2_cli.py).
 # Additive only -- GENERATOR_MODEL/MAX_TURNS/MAX_ATTEMPTS above stay
 # untouched; those belong to direct_api/ and agents/, not this module.
 # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ No naming collisions — verified against the full current file.
                          help="Stage 2 implementation: 'legacy' monolithic loop (default), 'graph' "
                               "multi-agent flowchart (src/agents/stage2_graph.py), or 'subprocess' -- "
                               "the `claude` CLI billed via Claude subscription "
-                              "(src/claude_cli_subprocess/stage2.py)")
+                              "(src/claude_cli_subprocess/stage2_cli.py)")
 ```
 
 **Diff B** (line 184-189 — delete the whole fail-fast block, including its trailing blank line,
@@ -135,7 +135,7 @@ so `main()` goes straight from `args = parser.parse_args()` to `if args.quiet:`)
 ## `src/agents/dispatch.py` — no change needed
 
 Verified lines 66-69 already implement the subprocess branch as a lazy import; works
-immediately once `stage2.py` is real.
+immediately once `stage2_cli.py` is real.
 
 ## Documentation/comment updates needed
 
@@ -162,12 +162,12 @@ Change to match how `legacy`/`graph` are already worded (`Stage 1: available.  S
 
 **2. `docs/architecture.md`'s call graph** (verified exact current lines 51-52):
 ```
-       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2.py]
+       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2_cli.py]
                                               └─► NotImplementedError  (not yet built -- see docs/cli-subprocess-plan.md)
 ```
 Change to mirror the `legacy`/`graph` leaves already in that same diagram:
 ```
-       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2.py]
+       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2_cli.py]
                                               └─► run_claude_cli() ─► subprocess.run(["claude","-p",...])   ⟵ claude CLI
 ```
 
@@ -188,16 +188,16 @@ Stage 2 is real:
 - Line 164: section header `## Stage 2: full design (build later — this is the ready-to-implement spec)` — update to drop "(build later...)", e.g. `## Stage 2: design (built — see docs/claude-cli-subprocess-stage2-implementation-plan.md for the executed implementation)`.
 - The Stage 2 code-snippet quotes at lines 156/392 (the `NotImplementedError`/`parser.error` message text) are historical quotes of code that existed at the time of writing — leave as-is, they're accurately describing what the stub used to say, not a live claim.
 
-## `src/claude_cli_subprocess/stage2.py` — full implementation
+## `src/claude_cli_subprocess/stage2_cli.py` — full implementation
 
 ```python
 """
-stage2.py -- Stage 2 (note generation) via the `claude` CLI subprocess,
+stage2_cli.py -- Stage 2 (note generation) via the `claude` CLI subprocess,
 billed against a Claude subscription instead of the metered Anthropic API
 key (see src/claude_cli_subprocess/__init__.py for how this compares to
 src/direct_api/ and src/agents/).
 
-WHY THIS MODULE IS SHAPED DIFFERENTLY FROM direct_api.func_generate_notes
+WHY THIS MODULE IS SHAPED DIFFERENTLY FROM direct_api.stage2_api
 ---------------------------------------------------------------------------
 The legacy SDK implementation has to paste every transcript/supporting
 file's actual TEXT CONTENT into the conversation, because a raw Anthropic
@@ -211,7 +211,7 @@ package itself (templates/study-notes.skill), synced onto local disk by
 sync_skill_package() before the CLI call.
 
 ONE call per attempt, not a hand-rolled multi-turn loop: unlike
-direct_api.func_generate_notes's turn-by-turn tool loop, this module makes
+direct_api.stage2_api's turn-by-turn tool loop, this module makes
 a SINGLE `claude -p ...` subprocess call per attempt. Claude Code's own
 session persistence (`-r/--resume <session_id>`) is what allows a later
 attempt to continue an interrupted run, instead of us replaying full
@@ -297,7 +297,7 @@ def _chapter_workspace(target_dir: Path) -> Path:
 def build_cli_prompt(target_dir: Path, expected_docx: Path, resume: bool = False) -> str:
     """The per-run instructions given to `claude -p`. Deliberately SHORT
     and points at FOLDER PATHS, not file contents -- unlike
-    direct_api.func_generate_notes's build_user_prompt(), which has to
+    direct_api.stage2_api's build_user_prompt(), which has to
     paste file content into the message because a raw API call has no
     filesystem access. This CLI call has real filesystem access via
     --add-dir, so it doesn't need that.
@@ -372,7 +372,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
         # implementation time -- pilot-verification item, see plan step 1.
         cmd += ["-r", resume_session_id]
     if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
-        # Same cost-safe smoke-test toggle Stage 1 uses (see stage1.py's
+        # Same cost-safe smoke-test toggle Stage 1 uses (see stage1_cli.py's
         # run_router()) -- a hard per-call dollar ceiling and a lower
         # reasoning-effort setting, since the CLI has no max_tokens flag.
         cmd += ["--max-budget-usd", str(config.DEV_TOKEN_SAVER_MAX_BUDGET_USD),
@@ -486,14 +486,14 @@ def classify_cli_result(result: dict) -> dict:
 
 def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
     """Stage 2's subprocess entrypoint -- same contract shape as
-    direct_api.func_generate_notes.run_generate() and
+    direct_api.stage2_api.run_generate() and
     agents.stage2_graph.run_stage2_chapter(): returns EXIT_OK,
     EXIT_RATE_LIMITED, or EXIT_FATAL.
     """
     logger.info(f"=== Stage 2: claude CLI Subprocess Generator (live_mode={live_mode}) ===")
 
     if not target_dir:
-        from src.direct_api.func_generate_notes import select_target_chapter
+        from src.direct_api.stage2_api import select_target_chapter
         target_dir = select_target_chapter(config.DEFAULT_TARGET_ROOT)
         if not target_dir:
             logger.info("No chapter folder ready for note generation. Nothing to do.")
@@ -538,7 +538,7 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
 
     if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
         # Dummy prompt that does NOT point at real transcripts -- mirrors
-        # stage1.py's route_file() dev-mode pattern. --max-budget-usd/
+        # stage1_cli.py's route_file() dev-mode pattern. --max-budget-usd/
         # --effort are added inside run_claude_cli() itself.
         prompt = ("You are a test agent in DEV_TOKEN_SAVER_MODE for the /study-notes skill. "
                    "Do NOT read any real transcript or supporting file. Reply with a short "
@@ -640,10 +640,10 @@ now stale) with:
 ```python
 def test_generate_notes_subprocess_mode_dispatches_to_cli_stage2():
     """When STAGE2_IMPL='subprocess', dispatch calls the real (built)
-    claude_cli_subprocess.stage2.run_stage2_chapter."""
+    claude_cli_subprocess.stage2_cli.run_stage2_chapter."""
     with patch('src.agents.dispatch.config') as mock_config:
         mock_config.STAGE2_IMPL = 'subprocess'
-        with patch('src.claude_cli_subprocess.stage2.run_stage2_chapter', return_value=0) as mock_s2:
+        with patch('src.claude_cli_subprocess.stage2_cli.run_stage2_chapter', return_value=0) as mock_s2:
             from src.agents.dispatch import generate_notes
             result = generate_notes(Path('/fake'), live_mode=False, verbose=False)
             assert result == 0
@@ -723,7 +723,7 @@ pytest tests/test_dispatch.py tests/test_main_cli.py -q
 ## Execution order
 
 1. `config/settings.py` — insert Stage 2 settings block, AND fix the stale line 93 comment.
-2. `src/claude_cli_subprocess/stage2.py` — replace stub with full implementation.
+2. `src/claude_cli_subprocess/stage2_cli.py` — replace stub with full implementation.
 3. `src/main.py` — remove fail-fast block, update help text.
 4. `tests/test_claude_cli_subprocess_stage2.py` — new file.
 5. `tests/test_dispatch.py` — replace the one stale test.
