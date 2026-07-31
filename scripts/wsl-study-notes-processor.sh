@@ -64,6 +64,16 @@ OPTIONS
                          billed via Claude subscription, not the metered API key
                          Stage 1: available.  Stage 2: available.
 
+    --target-dir <path>
+        Stage 2 only. Process exactly this chapter folder instead of
+        auto-picking the next ready one -- bypasses auto-selection AND
+        ignores that chapter's _hold/marker files (a chapter normally
+        skipped as "on hold" or "already done" WILL run if named here
+        explicitly). <path> must be an existing directory; a typo'd or
+        missing path now fails fast with a clear error instead of silently
+        reporting success against zero input files. Has no effect on
+        Stage 1, which always scans its normal input folders regardless.
+
     --doctor        Environment health check, then exit (ignores everything else)
     --dry-run       Stage 1 only: show planned actions, touch nothing
     --verbose       Enable verbose logging
@@ -82,6 +92,12 @@ EXAMPLES
 
     wsl-study-notes-processor.sh --stage1-impl subprocess --stage1-mode llm-full
         Real Stage 1 routing via the claude CLI subprocess (Stage 2 not run).
+
+    wsl-study-notes-processor.sh --stage2-mode llm-full --stage2-impl subprocess \
+        --target-dir "/path/to/AI-Chapter-Notes/Maths-Ch3-Permutations-and-Combination"
+        Generate this ONE named chapter for real, regardless of auto-selection
+        order or an existing _hold marker. Stage 1 still runs its normal scan
+        (use --stage1-mode off to skip it entirely).
 
     wsl-study-notes-processor.sh --stage1-mode llm-full --stage1-impl subprocess \
         --stage2-mode llm-token-saver --stage2-impl graph

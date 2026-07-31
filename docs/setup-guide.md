@@ -11,10 +11,8 @@ To deploy this project on any Windows machine with WSL Ubuntu installed:
 3. Approve the Windows User Account Control (UAC) prompt.
 
 The installer will automatically:
-- Create `C:\StudyNotesAutomation\` (with `logs` and `state` subfolders)
-- Copy `win-environment-setup.ps1` and `wsl-study-notes-processor.sh` to `C:\StudyNotesAutomation\`
 - Build the Python virtual environment (`~/.global_venv`) and install dependencies
-- Register the 3:00 AM Task Scheduler task (`StudyNotesNightly`) automatically
+- Register the 3:00 AM Task Scheduler task (`StudyNotesNightly`) automatically, pointing directly to the scripts in this repository.
 
 ## Setting Up API Keys
 
@@ -73,9 +71,9 @@ sudo -n -l
 
 ## Log Monitoring
 
-All system output is written to a single unified log file accessible from both Windows and Linux:
-- Windows Path: `C:\StudyNotesAutomation\logs\study-notes-pipeline.log`
-- Linux Path: `/mnt/c/StudyNotesAutomation/logs/study-notes-pipeline.log`
+All system output is written to a single unified log file in the repository's `logs/` directory:
+- Windows Path: `<repository-root>\logs\study-notes-pipeline.log`
+- Linux Path: `<wsl-repo-root>/logs/study-notes-pipeline.log`
 
 ## Switching the Nightly Pipeline Mode (Legacy vs. Agentic)
 

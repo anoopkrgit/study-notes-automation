@@ -328,6 +328,20 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         logger.info("No chapter folder ready for note generation. Nothing to do.")
         logger.info("----------------------------------------------------------------------")
         return EXIT_OK
+    # Defensive: main.py always passes a Path, but coerce here too in case
+    # some other caller (or a test) hands this a plain string -- cheap and
+    # a no-op if it's already a Path.
+    target_dir = Path(target_dir)
+
+    if not target_dir.is_dir():
+        # Only reachable via an explicit --target-dir: select_target_chapter()
+        # above only ever returns folders that already exist. Without this
+        # check, a typo'd --target-dir silently "succeeds" -- 0 transcripts
+        # and 0 supporting files found is indistinguishable from a real
+        # chapter that genuinely has no input yet (confirmed live: returns
+        # EXIT_OK either way otherwise).
+        logger.error(f"--target-dir path does not exist or is not a directory: {target_dir}")
+        return EXIT_FATAL
 
     logger.info(f"Target chapter directory: {target_dir}")
 

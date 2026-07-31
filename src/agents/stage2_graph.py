@@ -337,6 +337,16 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
         if not chapter_dir:
             logger.info("No chapter folder ready for note generation. Nothing to do.")
             return EXIT_OK
+    # Defensive: main.py always passes a Path, but coerce here too in case
+    # some other caller (or a test) hands this a plain string -- cheap and
+    # a no-op if it's already a Path.
+    chapter_dir = Path(chapter_dir)
+
+    if not chapter_dir.is_dir():
+        # Only reachable via an explicit --target-dir -- see the matching
+        # check/comment in direct_api.stage2_api.run_generate().
+        logger.error(f"--target-dir path does not exist or is not a directory: {chapter_dir}")
+        return EXIT_FATAL
 
     if not live_mode:
         # Mock mode: report success without touching the API or the

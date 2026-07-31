@@ -101,12 +101,25 @@ def test_route_after_qa_fail_fatal_status():
     }
     assert route_after_qa(state) == 'fail'
 
-def test_run_stage2_chapter_mock_mode():
-    """run_stage2_chapter returns EXIT_OK immediately in mock mode."""
+def test_run_stage2_chapter_mock_mode(tmp_path):
+    """run_stage2_chapter returns EXIT_OK immediately in mock mode, given a
+    real chapter directory (mock mode still validates --target-dir exists --
+    see run_stage2_chapter's is_dir() check -- it just does no real work
+    beyond that)."""
     from src.agents.stage2_graph import run_stage2_chapter
     from src.func_tools_and_utils import EXIT_OK
-    result = run_stage2_chapter('/fake/chapter', live_mode=False)
+    chapter_dir = tmp_path / "chapter"
+    chapter_dir.mkdir()
+    result = run_stage2_chapter(str(chapter_dir), live_mode=False)
     assert result == EXIT_OK
+
+def test_run_stage2_chapter_rejects_nonexistent_target_dir():
+    """A bad/typo'd --target-dir must fail fast (EXIT_FATAL), not silently
+    report success as if it were just an empty-but-real chapter folder."""
+    from src.agents.stage2_graph import run_stage2_chapter
+    from src.func_tools_and_utils import EXIT_FATAL
+    result = run_stage2_chapter('/definitely/does/not/exist', live_mode=False)
+    assert result == EXIT_FATAL
 
 def test_build_stage2_graph_structure():
     """build_stage2_graph creates a graph with the expected nodes."""

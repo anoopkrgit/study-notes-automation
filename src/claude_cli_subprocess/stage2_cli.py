@@ -37,12 +37,69 @@ import subprocess
 import time
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import settings as config
 from src.func_tools_and_utils import (
     logger, write_retry_epoch, EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 )
 from .common import build_claude_env, is_usage_limit
+
+
+def _heartbeat_summary(workspace: Path) -> str:
+    """Best-effort one-line description of the most recent thing the
+    running `claude` session did, for the periodic "still working" log
+    line in run_claude_cli() below. The claude CLI call itself is a single
+    blocking subprocess call that prints nothing until it's completely
+    done, so this reads a SEPARATE source instead: Claude Code
+    automatically writes its own local session transcript (a growing
+    JSONL file, one JSON object per line, one folder per working
+    directory under ~/.claude/projects/) as it works, regardless of
+    --output-format. This just peeks at the tail of that file's newest
+    entry and turns it into a short phrase (e.g. "using tool Edit").
+
+    Deliberately best-effort and silent-on-failure: this is a "nice to
+    have" progress indicator, not something the actual pipeline result
+    should ever depend on -- if the transcript folder doesn't exist yet,
+    is unreadable, or its format ever changes, this just falls back to a
+    generic "working" string rather than raising and disrupting the real
+    generation call.
+    """
+    try:
+        # Claude Code names each project's transcript folder after that
+        # project's working directory, with every "/" swapped for "-".
+        project_dir = Path.home() / ".claude" / "projects" / str(workspace).replace("/", "-")
+        candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not candidates:
+            return "starting up"
+        # Only read the last ~8KB rather than the whole (potentially
+        # multi-megabyte) file -- we only need the MOST RECENT entry.
+        with open(candidates[0], "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - 8000))
+            tail = f.read().decode("utf-8", errors="ignore")
+        last_line = None
+        for line in tail.splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                last_line = line
+        if not last_line:
+            return "working"
+        content = json.loads(last_line).get("message", {}).get("content")
+        if isinstance(content, list):
+            for block in reversed(content):
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "tool_use":
+                    return f"using tool {block.get('name', '?')}"
+                if block.get("type") == "text":
+                    text = (block.get("text") or "").strip().replace("\n", " ")
+                    if text:
+                        return text[:100]
+        return "working"
+    except Exception:
+        return "working"
 
 
 def sync_skill_package() -> Path:
@@ -189,6 +246,11 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
            "--add-dir", str(target_dir)]
     if getattr(config, 'CLAUDE_MODEL', ''):
         cmd += ["--model", config.CLAUDE_MODEL]
+    if not dev_mode and getattr(config, 'CLAUDE_EFFORT', ''):
+        # Live-mode quality/cost knob, independent of dev_mode's own
+        # DEV_TOKEN_SAVER_EFFORT below (which always wins while dev mode is
+        # on -- the two never both apply).
+        cmd += ["--effort", config.CLAUDE_EFFORT]
     if resume_session_id:
         # Exact flag spelling unverified against `claude -p --help` at
         # implementation time -- pilot-verification item, see plan step 1.
@@ -203,18 +265,66 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
 
     logger.info(f"Invoking claude CLI for chapter '{target_dir.name}' "
                 f"(cwd={workspace}, resume={'yes' if resume_session_id else 'no'}) ...")
+
+    # This call routinely runs for many minutes (up to CLAUDE_CLI_TIMEOUT_SECONDS,
+    # an hour by default) and prints nothing on its own until it's completely
+    # done -- without a heartbeat, the pipeline log goes silent that whole
+    # time. subprocess.Popen + a polling proc.communicate(timeout=...) loop
+    # (instead of one blocking subprocess.run(..., timeout=...) call) lets a
+    # short "still working" line get logged periodically in between, without
+    # risking a deadlock: communicate() is the one polling method that keeps
+    # draining the subprocess's stdout/stderr pipes while it waits, so
+    # output the CLI produces can never fill the OS pipe buffer and hang
+    # the child -- a plain proc.poll()-and-sleep loop would risk exactly that.
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, cwd=str(workspace),
-                            env=build_claude_env(),
-                            timeout=config.CLAUDE_CLI_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        logger.error(f"claude CLI call timed out after {config.CLAUDE_CLI_TIMEOUT_SECONDS}s.")
-        return {"ok": False, "result": None, "session_id": None, "total_cost_usd": None,
-                "error": "timeout", "returncode": None, "raw_stdout": ""}
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, cwd=str(workspace), env=build_claude_env())
     except Exception as e:
         logger.error(f"claude CLI call failed to launch: {e}")
         return {"ok": False, "result": None, "session_id": None, "total_cost_usd": None,
                 "error": f"launch failure: {e}", "returncode": None, "raw_stdout": ""}
+
+    start = time.monotonic()
+    deadline = start + config.CLAUDE_CLI_TIMEOUT_SECONDS
+    heartbeat_seconds = max(1, getattr(config, 'CLAUDE_CLI_HEARTBEAT_SECONDS', 120))
+    last_heartbeat_msg = None
+    stdout_data = stderr_data = None
+    timed_out = False
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            timed_out = True
+            break
+        try:
+            stdout_data, stderr_data = proc.communicate(timeout=min(heartbeat_seconds, remaining))
+            break  # process finished
+        except subprocess.TimeoutExpired:
+            # Not done yet -- log a short status line (skipping it if
+            # nothing's changed since last time, to keep the log minimal
+            # rather than repeating the same "still working" line every
+            # couple of minutes for a step that takes a while).
+            elapsed = int(time.monotonic() - start)
+            msg = _heartbeat_summary(workspace)
+            if msg != last_heartbeat_msg:
+                logger.info(f"claude CLI still working on '{target_dir.name}' ({elapsed}s elapsed): {msg}")
+                last_heartbeat_msg = msg
+            continue
+
+    if timed_out:
+        proc.kill()
+        try:
+            proc.communicate(timeout=10)
+        except Exception:
+            pass
+        logger.error(f"claude CLI call timed out after {config.CLAUDE_CLI_TIMEOUT_SECONDS}s.")
+        return {"ok": False, "result": None, "session_id": None, "total_cost_usd": None,
+                "error": "timeout", "returncode": None, "raw_stdout": ""}
+
+    # Stand-in for the subprocess.run() result object the rest of this
+    # function reads (.stdout/.stderr/.returncode) -- same field names, so
+    # nothing below needs to change now that the call itself is a Popen +
+    # communicate() loop instead of a single subprocess.run().
+    p = SimpleNamespace(stdout=stdout_data, stderr=stderr_data, returncode=proc.returncode)
 
     combined = (p.stdout or "") + "\n" + (p.stderr or "")
 
@@ -321,6 +431,16 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
         if not target_dir:
             logger.info("No chapter folder ready for note generation. Nothing to do.")
             return EXIT_OK
+    # Defensive: main.py always passes a Path, but coerce here too in case
+    # some other caller (or a test) hands this a plain string -- cheap and
+    # a no-op if it's already a Path.
+    target_dir = Path(target_dir)
+
+    if not target_dir.is_dir():
+        # Only reachable via an explicit --target-dir -- see the matching
+        # check/comment in direct_api.stage2_api.run_generate().
+        logger.error(f"--target-dir path does not exist or is not a directory: {target_dir}")
+        return EXIT_FATAL
 
     logger.info(f"Target chapter directory: {target_dir}")
     expected_docx = target_dir / f"{target_dir.name}.docx"
