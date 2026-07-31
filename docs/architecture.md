@@ -1,6 +1,8 @@
 # Architecture & Invocation Flow
 
-This document details the linear execution pipeline for the Study Notes Automation suite.
+This document details the execution pipeline for the Study Notes Automation suite. Steps 1-3
+are linear; step 4 branches per-stage across three parallel implementations, selected via
+`--stage1-impl`/`--stage2-impl` (see readme.md's Quick Start).
 
 ```text
 1. Windows Task Scheduler (03:00 AM Trigger)
@@ -22,33 +24,34 @@ This document details the linear execution pipeline for the Study Notes Automati
         see readme.md's Quick Start for every --stageN-mode/--stageN-impl combination)
    │
    ▼
-4. main.py / func-assemble-chapters.py / func-generate-notes.py (Python Engine)
+4. main.py (Python Engine -- dispatches to ONE of THREE parallel implementations per stage)
    │
-   ├─► STAGE 1: Chapter Folder Assembler
+   ├─► STAGE 1: Chapter Folder Assembler                    [src/direct_api/func_assemble_chapters.py::run_assemble()]
    │   │  [Env Stabilization]
-   │   ├─► Load `ANTHROPIC_API_KEY` from `~/.anthropic_env` & SHA-256 state (`assemble-state.json`)
+   │   ├─► Load `ANTHROPIC_API_KEY` from `~/.anthropic_env` & SHA-256 state (`state/assemble-state.json`)
    │   ├─► Read incoming files from `Telegram-A27-Download/` & `Collected-Study-Materials/`
-   │   │  [API Execution]
-   │   ├─► Log file classification step-by-step & route via `claude-haiku-4-5-20251001`
+   │   │  [Per-file routing -- dispatch.route_file(impl), src/agents/dispatch.py]
+   │   ├─ --stage1-impl legacy (default) ─► llm_route()        [src/direct_api/func_assemble_chapters.py]
+   │   │                                      └─► run_router() ─► client.messages.create()          ⟵ Anthropic API
+   │   ├─ --stage1-impl graph ────────────► route_one_file()    [src/agents/stage1_graph.py]
+   │   │                                      └─► extract/triage/reconcile nodes ─► client.messages.create()   ⟵ Anthropic API
+   │   ├─ --stage1-impl subprocess ───────► route_file()        [src/claude_cli_subprocess/stage1.py]
+   │   │                                      └─► run_router() ─► subprocess.run(["claude","-p",...])   ⟵ claude CLI
    │   │  [Env Stabilization]
    │   └─► Copy files into `AI-Chapter-Notes/<Folder>/` & update `_hold` / SHA-256 state
    │
-   ├─► STAGE 2: Target Chapter Selection
-   │   │  [Env Stabilization]
-   │   └─► Select first folder missing `.docx`, `_notes_done`, `_hold`, or `_notes_FAILED.txt`
-   │
-   └─► STAGE 3: Agentic Study Notes Generator (Default Mock Mode)
+   └─► STAGE 2: Target Selection + Note Generation           [dispatch.generate_notes(impl), src/agents/dispatch.py]
        │  [Env Stabilization]
-       ├─► Log inputs identified (spine transcripts, supporting files, target docx name)
-       ├─► Inject the full `study-notes-skill.md` into the System Prompt
-       │  [API Execution]  (Mock Mode: metadata-only ping, 0 body tokens)
-       ├─► Live Mode: run the tool-call loop (tool_read/write/edit/glob/grep/bash,
-       │   tool_convert_to_png, tool_view_image, tool_view_pdf_page) up to
-       │   config.MAX_TURNS turns -- a generous safety valve, not a realistic cap;
-       │   progress (full message history) is saved to state/progress/<chapter>.json
-       │   after every turn so a rate-limit pause resumes exactly where it left off
+       ├─► Select first folder missing `.docx`, `_notes_done`, `_hold`, or `_notes_FAILED.txt`
+       │  [API/CLI Execution]  (Mock/no-llm mode: metadata-only check, 0 body tokens)
+       ├─ --stage2-impl legacy (default) ─► run_generate()      [src/direct_api/func_generate_notes.py]
+       │                                      └─► tool-call loop (up to config.MAX_TURNS) ─► client.messages.create()   ⟵ Anthropic API
+       ├─ --stage2-impl graph ────────────► run_stage2_chapter() [src/agents/stage2_graph.py]
+       │                                      └─► author/figure/compiler nodes [src/agents/base.py] ─► client.messages.create()   ⟵ Anthropic API
+       └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2.py]
+                                              └─► NotImplementedError  (not yet built -- see docs/cli-subprocess-plan.md)
        │  [Env Stabilization]
-       └─► Confirm `.docx` file written to disk & drop `_notes_done` completion marker (in Live mode)
+       └─► Confirm `.docx` file written to disk & drop `_notes_done` completion marker (llm-full mode only)
    │
    ▼
 5. Return & Exit Handling (System Reset & Retry Handshake)
