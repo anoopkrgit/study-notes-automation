@@ -102,5 +102,11 @@ def test_mixed_token_saver_combo_is_independent_per_stage():
     assert stage1[1] != stage2[1]    # the two stages' token-saver settings differ
 
 
+def test_stage2_impl_subprocess_no_longer_fails_fast():
+    from src.main import build_parser
+    parser = build_parser()
+    args = parser.parse_args(["--stage2-mode", "off", "--stage2-impl", "subprocess"])
+    assert args.stage2_impl == "subprocess"
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

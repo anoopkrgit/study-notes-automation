@@ -49,7 +49,7 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
        ├─ --stage2-impl graph ────────────► run_stage2_chapter() [src/agents/stage2_graph.py]
        │                                      └─► author/figure/compiler nodes [src/agents/base.py] ─► client.messages.create()   ⟵ Anthropic API
        └─ --stage2-impl subprocess ───────► run_stage2_chapter() [src/claude_cli_subprocess/stage2.py]
-                                              └─► NotImplementedError  (not yet built -- see docs/cli-subprocess-plan.md)
+                                              └─► run_claude_cli() ─► subprocess.run(["claude","-p",...])   ⟵ claude CLI
        │  [Env Stabilization]
        └─► Confirm `.docx` file written to disk & drop `_notes_done` completion marker (llm-full mode only)
    │
