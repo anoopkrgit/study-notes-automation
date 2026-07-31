@@ -126,11 +126,19 @@ DEV_TOKEN_SAVER_EFFORT = os.environ.get("DEV_TOKEN_SAVER_EFFORT", "low")
 # untouched; those belong to direct_api/ and agents/, not this module.
 # ---------------------------------------------------------------------------
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "")  # unset by default; when set, passed as --model
+CLAUDE_EFFORT = os.environ.get("CLAUDE_EFFORT", "")  # unset by default; when set (low/medium/high/xhigh/max),
+                                                       # passed as --effort on LIVE (non-dev-mode) calls only --
+                                                       # dev-mode's own DEV_TOKEN_SAVER_EFFORT above is separate
+                                                       # and always wins while dev mode is on.
 CLAUDE_ALLOWED_TOOLS = os.environ.get("CLAUDE_ALLOWED_TOOLS",
     "Bash(python3 *),Bash(node *),Bash(npm *),Bash(pdftotext *),Bash(pdfinfo *),"
     "Bash(pdftoppm *),Bash(soffice *),Read,Write,Edit,Glob,Grep")
 CLAUDE_PERMISSION_MODE = os.environ.get("CLAUDE_PERMISSION_MODE", "acceptEdits")
 CLAUDE_CLI_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_CLI_TIMEOUT_SECONDS", "3600"))
+CLAUDE_CLI_HEARTBEAT_SECONDS = int(os.environ.get("CLAUDE_CLI_HEARTBEAT_SECONDS", "120"))  # how
+    # often (seconds) a one-line "still working, currently doing X" heartbeat is written to the
+    # unified pipeline log while a live claude CLI call is in progress (the call itself is a single
+    # blocking subprocess call, so without this the log goes silent for up to CLAUDE_CLI_TIMEOUT_SECONDS)
 CLAUDE_RETRY_EPOCH_DEFAULT_SECONDS = int(os.environ.get("CLAUDE_RETRY_EPOCH_DEFAULT_SECONDS", str(5 * 3600)))
 CLAUDE_SKILL_SOURCE_GLOB = os.environ.get("CLAUDE_SKILL_SOURCE_GLOB", "templates/*.skill")
 CLAUDE_SKILL_INSTALL_DIR = LOCAL_RUNTIME_ROOT / ".claude" / "skills" / "study-notes"

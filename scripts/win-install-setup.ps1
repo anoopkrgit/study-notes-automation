@@ -1,14 +1,11 @@
 # win-install-setup.ps1
 # Windows installation helper invoked by 1-click install.bat
 #
-# DESIGN NOTE: this used to copy the whole pipeline into a fixed staging
-# folder (C:\StudyNotesAutomation) and run it from there, so a code edit
-# only took effect after re-running this installer. The Task Scheduler
-# action registered below now points directly at THIS repo's own scripts/
-# folder instead, so src/config/templates edits take effect on the very
-# next nightly run with no reinstall step. Only re-run this installer if
-# the repo itself moves to a different path, or to re-register the task
-# from scratch.
+# DESIGN NOTE: This installer registers the Task Scheduler action to run the
+# pipeline directly from THIS repo's own scripts/ folder. This means
+# src/config/templates edits take effect on the very next nightly run with
+# no reinstall step. Only re-run this installer if the repo itself moves
+# to a different path, or to re-register the task from scratch.
 
 $ErrorActionPreference = "Continue"
 

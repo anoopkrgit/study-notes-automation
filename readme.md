@@ -135,6 +135,12 @@ python3 src/main.py --stage1-mode llm-token-saver --stage2-mode llm-token-saver
 
 # Any combination also accepts --verbose / --quiet / --dry-run
 python3 src/main.py --stage1-mode no-llm --dry-run
+
+# Stage 2 only, for one specific named chapter (bypasses auto-selection
+# and any _hold marker). Must be an existing chapter directory --
+# a bad path now fails fast instead of silently "succeeding" against
+# zero input files.
+python3 src/main.py --stage2-mode llm-full --target-dir "AI-Chapter-Notes/Maths-Ch3-Permutations-and-Combination"
 ```
 
 ---

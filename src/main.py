@@ -155,6 +155,10 @@ def build_parser() -> argparse.ArgumentParser:
                               "multi-agent flowchart (src/agents/stage2_graph.py), or 'subprocess' -- "
                               "the `claude` CLI billed via Claude subscription "
                               "(src/claude_cli_subprocess/stage2_cli.py)")
+    parser.add_argument("--target-dir", type=str, default=None,
+                         help="Specific chapter directory to process (Stage 2 only). If provided, bypasses "
+                              "auto-selection and ignores hold/marker files. Must be an existing directory -- "
+                              "a nonexistent path exits with EXIT_FATAL instead of silently reporting success.")
     return parser
 
 
@@ -227,7 +231,8 @@ def main():
         if token_saver:
             logger.info("Stage 2: DEV_TOKEN_SAVER_MODE enabled via --stage2-mode llm-token-saver "
                         "(dummy prompt, capped output, cheapest model).")
-        exit_code = run_generate(live_mode=with_llm, verbose=args.verbose, impl=args.stage2_impl)
+        target_path = Path(args.target_dir) if args.target_dir else None
+        exit_code = run_generate(target_dir=target_path, live_mode=with_llm, verbose=args.verbose, impl=args.stage2_impl)
 
     sys.exit(exit_code)
 

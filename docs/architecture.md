@@ -12,7 +12,7 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
    │  [Env Stabilization]
    ├─► Assert C# Win32 keep-awake lock (`SetThreadExecutionState`) to prevent sleep
    ├─► Verify/Relaunch `GoogleDriveFS.exe` process & await `G:\` drive availability
-   └─► Invoke WSL Bash wrapper: `wsl.exe -e bash -lc "/mnt/c/StudyNotesAutomation/wsl-study-notes-processor.sh"`
+   └─► Invoke WSL Bash wrapper: `wsl.exe -e bash -lc "<wsl-repo-root>/scripts/wsl-study-notes-processor.sh"`
    │
    ▼
 3. wsl-study-notes-processor.sh (WSL Entrypoint & Remount Helper)
@@ -60,7 +60,7 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
    │   see `classify_api_error()` in func_tools_and_utils.py, which tells these
    │   apart from a non-retryable billing/config error):
    │   ├─► Pipeline writes the actual retry time (read from the API's response
-   │   │   headers when available) to `C:\StudyNotesAutomation\state\retry-epoch.txt`
+   │   │   headers when available) to `<repository-root>\state\retry-epoch.txt`
    │   │   & exits with code 42
    │   ├─► `wsl-study-notes-processor.sh` passes code 42 up to `win-environment-setup.ps1`
    │   └─► PowerShell registers one-time Windows wake task (`StudyNotesRetry`) for reset epoch
