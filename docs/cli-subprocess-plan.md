@@ -44,13 +44,13 @@ CLI/subscription execution both cheaper and higher-quality than the old hand-rol
 5. **`dispatch.py` stays inside `src/agents/`** — not relocated, even though it now switches
    between three co-equal siblings. Scope-minimization call, purely cosmetic either way.
 6. **Stage 1 subprocess: fully built now**, ported from the working reference prototype
-   `src/assemble_chapters_subtask.py`. **Stage 2 subprocess: scaffolded now** (clear
-   `NotImplementedError`), full build deferred — no reference code exists for it, only the
-   detailed design in this doc (originally `stage2-claude-cli-migration-plan.md`).
-7. **`--stage2-impl` gets `subprocess` added to CLI choices** (3-way symmetry) but fails fast
-   via `parser.error()` in `main.py` **and** `NotImplementedError` in `src/claude_cli_subprocess/stage2.py`
-   (defense in depth — the second layer covers direct `dispatch.generate_notes(impl=...)`
-   callers that bypass argparse).
+   `src/assemble_chapters_subtask.py`. **Stage 2 subprocess: fully built now**, built from the detailed
+   design in this doc (see `docs/claude-cli-subprocess-stage2-implementation-plan.md` for the executed implementation).
+7. **`--stage2-impl subprocess` is now a real, fully working choice.** The `parser.error()`
+   fail-fast in `main.py` and the `NotImplementedError` stub in
+   `src/claude_cli_subprocess/stage2.py` (both defense-in-depth against the module not existing
+   yet) have been removed now that a real implementation is behind them — see
+   `docs/claude-cli-subprocess-stage2-implementation-plan.md`.
 8. **`src/assemble_chapters_subtask.py` gets deleted** once its logic is ported into
    `src/claude_cli_subprocess/stage1.py` and tests pass — confirm before deleting, don't do it silently.
 
@@ -161,7 +161,7 @@ def run_stage2_chapter(target_dir=None, live_mode=False) -> int:
 
 ---
 
-## Stage 2: full design (build later — this is the ready-to-implement spec)
+## Stage 2: design (built — see docs/claude-cli-subprocess-stage2-implementation-plan.md for the executed implementation)
 
 Everything below is carried forward from the superseded doc, reconciled to the "new parallel
 `src/claude_cli_subprocess/stage2.py` module" architecture instead of "rewrite

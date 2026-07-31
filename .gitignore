@@ -42,3 +42,15 @@ logs/
 # ── Generated Output Files ──────────────────────────────────
 *.docx
 _prev/
+
+# ── Local runtime caches (src/claude_cli_subprocess/ + misc skill runners) ──
+# .claude/skills/ -- sync_skill_package()'s local extraction of
+# templates/*.skill (config.CLAUDE_SKILL_INSTALL_DIR); generation-workspace/
+# -- per-chapter scratch cwd for the claude CLI subprocess call
+# (config.CLAUDE_WORKSPACE_ROOT); .skill-runtime/ and .study-notes/ --
+# runtime caches from local ad-hoc skill/CLI test runs. None of these are
+# source -- all are regenerated locally, safe to delete anytime.
+.claude/
+generation-workspace/
+.skill-runtime/
+.study-notes/

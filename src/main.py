@@ -153,7 +153,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stage2-impl", choices=["legacy", "graph", "subprocess"], default="legacy",
                          help="Stage 2 implementation: 'legacy' monolithic loop (default), 'graph' "
                               "multi-agent flowchart (src/agents/stage2_graph.py), or 'subprocess' -- "
-                              "NOT YET IMPLEMENTED, see docs/cli-subprocess-plan.md")
+                              "the `claude` CLI billed via Claude subscription "
+                              "(src/claude_cli_subprocess/stage2.py)")
     return parser
 
 
@@ -180,13 +181,6 @@ def resolve_stage_mode(mode: str):
 def main():
     parser = build_parser()
     args = parser.parse_args()
-
-    if args.stage2_impl == "subprocess":
-        parser.error(
-            "--stage2-impl subprocess is not yet implemented -- see the 'Stage 2: full "
-            "design' section of docs/cli-subprocess-plan.md. Use --stage2-impl legacy or "
-            "--stage2-impl graph."
-        )
 
     if args.quiet:
         logger.setLevel(logging.WARNING)

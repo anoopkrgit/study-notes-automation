@@ -62,10 +62,7 @@ OPTIONS
                          Stage 1: available.  Stage 2: available.
           subprocess   src/claude_cli_subprocess/ headless `claude` CLI,
                          billed via Claude subscription, not the metered API key
-                         Stage 1: available.
-                         Stage 2: NOT YET IMPLEMENTED -- fails fast with a
-                         clear error if requested; see the "Stage 2: full
-                         design" section of docs/cli-subprocess-plan.md.
+                         Stage 1: available.  Stage 2: available.
 
     --doctor        Environment health check, then exit (ignores everything else)
     --dry-run       Stage 1 only: show planned actions, touch nothing

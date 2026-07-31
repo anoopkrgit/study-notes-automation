@@ -51,15 +51,16 @@ def test_route_file_graph_mode():
             result = route_file(Path('/fake'), {})
             assert result == ([], False, 'mock')
 
-def test_generate_notes_subprocess_mode_raises():
-    """When STAGE2_IMPL='subprocess', dispatch calls run_stage2_chapter which raises NotImplementedError."""
+def test_generate_notes_subprocess_mode_dispatches_to_cli_stage2():
+    """When STAGE2_IMPL='subprocess', dispatch calls the real (built)
+    claude_cli_subprocess.stage2.run_stage2_chapter."""
     with patch('src.agents.dispatch.config') as mock_config:
         mock_config.STAGE2_IMPL = 'subprocess'
-        from src.claude_cli_subprocess.stage2 import run_stage2_chapter
-        with patch('src.claude_cli_subprocess.stage2.run_stage2_chapter', side_effect=NotImplementedError):
+        with patch('src.claude_cli_subprocess.stage2.run_stage2_chapter', return_value=0) as mock_s2:
             from src.agents.dispatch import generate_notes
-            with pytest.raises(NotImplementedError):
-                generate_notes(Path('/fake'), live_mode=False, verbose=False)
+            result = generate_notes(Path('/fake'), live_mode=False, verbose=False)
+            assert result == 0
+            mock_s2.assert_called_once()
 
 def test_route_file_subprocess_mode():
     """When STAGE1_IMPL='subprocess', dispatch calls cli_route_file."""
