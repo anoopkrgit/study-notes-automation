@@ -4,17 +4,18 @@
 # -PipelineArgs forwards straight through to wsl-study-notes-processor.sh,
 # which forwards it straight through to main.py's own CLI flags (see
 # `python3 src/main.py --help`, e.g. --stage1-impl/--stage2-impl
-# {legacy,graph}, --dev-token-saver, --run-generate). This is the ONLY
-# thing that decides which pipeline implementation runs -- there's no env
-# var or config file to edit. Left empty (the default, and what the
-# registered 'StudyNotesNightly' Scheduled Task passes today since its
-# action has no arguments), the wrapper script falls back to the
-# long-standing nightly policy on its own.
+# {legacy,graph,subprocess} and --stage1-mode/--stage2-mode
+# {off,no-llm,llm-token-saver,llm-full}). This is the ONLY thing that
+# decides which pipeline implementation runs -- there's no env var or
+# config file to edit. Left empty (the default, and what the registered
+# 'StudyNotesNightly' Scheduled Task passes today since its action has no
+# arguments), the wrapper script falls back to the long-standing nightly
+# policy on its own.
 #
-# Example -- run the new agentic pipeline for real (spends tokens):
-#   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --run-assemble --run-generate"
-# Example -- same, but cheap dummy-prompt smoke test instead of a real run:
-#   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --run-assemble --run-generate --dev-token-saver"
+# Example -- run the agentic pipeline for real (spends tokens):
+#   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full"
+# Example -- same, but cheap smoke test instead of a real run:
+#   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --stage1-mode llm-token-saver --stage2-mode llm-token-saver"
 param(
     [string]$PipelineArgs = ""
 )

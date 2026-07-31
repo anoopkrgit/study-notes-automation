@@ -312,7 +312,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
                      (see get_checkpointer in base.py).
     """
     if not chapter_dir:
-        from src.func_generate_notes import select_target_chapter
+        from src.direct_api.func_generate_notes import select_target_chapter
         chapter_dir = select_target_chapter(config.DEFAULT_TARGET_ROOT)
         if not chapter_dir:
             logger.info("No chapter folder ready for note generation. Nothing to do.")

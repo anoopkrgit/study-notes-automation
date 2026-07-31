@@ -50,7 +50,7 @@ fi
 # 2. Check DUMMY_UNTIL timestamp gate
 #
 # Zero-token guarantee while dummy mode is active: BOTH stages run without
-# the LLM (--run-assemble-no-llm, --run-generate-no-llm), and assembly is
+# the LLM (--stage1-mode no-llm, --stage2-mode no-llm), and assembly is
 # also --dry-run so it doesn't even write files -- only deterministic
 # filename-based routing and logging happen, so this costs nothing no
 # matter how it's invoked.
@@ -59,7 +59,7 @@ if [ -n "$DUMMY_UNTIL" ]; then
   cutoff_epoch="$(date -d "$DUMMY_UNTIL" +%s 2>/dev/null || echo 0)"
   if [ "$cutoff_epoch" -gt 0 ] && [ "$(date +%s)" -lt "$cutoff_epoch" ]; then
     echo "$(date -Is)  [WSL-PROC]  DUMMY MODE active (until $DUMMY_UNTIL local); running a zero-token dry pass only."
-    "$PYTHON_BIN" "$REPO_ROOT/src/main.py" --run-assemble-no-llm --dry-run --run-generate-no-llm
+    "$PYTHON_BIN" "$REPO_ROOT/src/main.py" --stage1-mode no-llm --dry-run --stage2-mode no-llm
     exit 0
   fi
 fi
@@ -69,26 +69,27 @@ fi
 # Which pipeline flags actually reach main.py is a pure CLI choice,
 # forwarded verbatim from however THIS script itself was invoked ("$@") --
 # never hardcoded here and never read from an env var, so choosing
-# legacy-vs-graph (and dummy-prompt-vs-real generation) never requires
-# editing this file. See `python3 src/main.py --help` for the full flag
-# set, in particular --stage1-impl/--stage2-impl {legacy,graph} and
-# --dev-token-saver.
+# legacy/graph/subprocess (and cheap-smoke-test-vs-real generation) never
+# requires editing this file. See `python3 src/main.py --help` for the
+# full flag set, in particular --stage1-impl/--stage2-impl
+# {legacy,graph,subprocess} and --stage1-mode/--stage2-mode
+# {off,no-llm,llm-token-saver,llm-full}.
 #
 # If this script is invoked with NO arguments at all (e.g. the nightly
 # Scheduled Task, whose registered action doesn't pass any), it falls back
 # to the long-standing nightly policy:
-#   --run-assemble        Stage 1 DOES use the LLM content router, so files
-#                          actually get classified and filed correctly
-#                          overnight.
-#   --run-generate-no-llm Stage 2 runs WITHOUT the LLM: it still does
-#                          everything except talk to the API (picks the
-#                          next chapter, lists its input files, logs all of
-#                          it) so you can see every morning exactly which
-#                          chapter is queued up next -- but spends ZERO
-#                          tokens, since nobody is watching to catch a bad
-#                          multi-turn generation run overnight.
+#   --stage1-mode llm-full   Stage 1 DOES use the LLM content router at full
+#                             cost, so files actually get classified and
+#                             filed correctly overnight.
+#   --stage2-mode no-llm     Stage 2 runs WITHOUT the LLM: it still does
+#                             everything except talk to the API (picks the
+#                             next chapter, lists its input files, logs all
+#                             of it) so you can see every morning exactly
+#                             which chapter is queued up next -- but spends
+#                             ZERO tokens, since nobody is watching to catch
+#                             a bad multi-turn generation run overnight.
 if [ "$#" -eq 0 ]; then
-  set -- --run-assemble --run-generate-no-llm
+  set -- --stage1-mode llm-full --stage2-mode no-llm
 fi
 echo "$(date -Is)  [WSL-PROC]  Executing main Python pipeline with args: $*"
 set +e

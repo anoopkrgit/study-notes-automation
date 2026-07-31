@@ -84,3 +84,24 @@ STAGE2_IMPL = os.environ.get("STUDY_NOTES_STAGE2_IMPL", "legacy")
 # Cost-safe dev/test toggle — forces cheap models, tiny prompts, capped output,
 # and dummy inputs across all graph nodes.  NEVER enable for production runs.
 DEV_TOKEN_SAVER_MODE = os.environ.get("DEV_TOKEN_SAVER_MODE", "0") == "1"
+
+# ---------------------------------------------------------------------------
+# claude CLI settings (src/claude_cli_subprocess/) -- the "subprocess" implementation.
+# Invokes the `claude` binary as a subprocess (Claude-subscription billing)
+# rather than calling the Anthropic SDK directly. Defaults work with a bare
+# `claude` on PATH -- zero config needed to try it. CLAUDE_BIN is shared by
+# both Stage 1 (built now) and Stage 2 (scaffolded; see cli-subprocess-plan.md).
+# ---------------------------------------------------------------------------
+CLAUDE_BIN = os.environ.get("CLAUDE_BIN", "claude")
+# Reuses the same ASSEMBLE_ROUTER_MODEL env var as ROUTER_MODEL above -- one
+# router-model setting shared across whichever --stage1-impl is selected.
+ESCALATE_MODEL = os.environ.get("ASSEMBLE_ESCALATE_MODEL", "claude-sonnet-5")
+
+# DEV_TOKEN_SAVER_MODE (see the rollout section above) applied to `claude`
+# CLI subprocess calls: the CLI has no `max_tokens` SDK parameter to cap,
+# so these two native CLI flags are the cost-safety equivalent --
+# `--max-budget-usd` is a hard dollar ceiling per invocation, `--effort low`
+# asks the model itself to do less work. Applied together with a dummy
+# prompt and skipped escalation (see src/claude_cli_subprocess/stage1.py).
+DEV_TOKEN_SAVER_MAX_BUDGET_USD = os.environ.get("DEV_TOKEN_SAVER_MAX_BUDGET_USD", "0.02")
+DEV_TOKEN_SAVER_EFFORT = os.environ.get("DEV_TOKEN_SAVER_EFFORT", "low")

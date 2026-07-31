@@ -4,13 +4,11 @@ main.py
 Master CLI entry point for the Study Notes Automation Pipeline.
 
 Flags (combine freely -- see `python3 main.py --help` for the full picture):
-  --run-assemble / --run-assemble-no-llm   Stage 1, with/without the LLM router
-  --run-generate / --run-generate-no-llm   Stage 2, with/without the LLM (tokens)
-  --run-both                               shorthand: both stages, both WITH the LLM
-  --stage1-impl {legacy,graph}             which Stage 1 implementation runs (default: legacy)
-  --stage2-impl {legacy,graph}             which Stage 2 implementation runs (default: legacy)
-  --dev-token-saver                        cheap smoke-test mode for --stage2-impl graph (see flag help)
-  --doctor                                 environment health check, then exit
+  --stage1-mode {off,no-llm,llm-token-saver,llm-full}   Stage 1: whether/how it spends (default: off)
+  --stage2-mode {off,no-llm,llm-token-saver,llm-full}   Stage 2: whether/how it spends (default: off)
+  --stage1-impl {legacy,graph,subprocess}               which Stage 1 implementation runs (default: legacy)
+  --stage2-impl {legacy,graph,subprocess}               which Stage 2 implementation runs (default: legacy)
+  --doctor                                              environment health check, then exit
 """
 
 import argparse
@@ -25,7 +23,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import settings as config
 from src.func_tools_and_utils import logger, EXIT_OK, EXIT_FATAL
-from src.func_assemble_chapters import run_assemble
+from src.direct_api.func_assemble_chapters import run_assemble
 from src.agents.dispatch import generate_notes as run_generate
 
 def run_doctor():
@@ -79,133 +77,147 @@ def run_doctor():
     logger.info("Doctor diagnostics check finished.")
     return EXIT_OK
 
+STAGE_MODE_CHOICES = ["off", "no-llm", "llm-token-saver", "llm-full"]
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI's flag definitions.
 
-    DESIGN, for readers new to this project: there are two SEPARATE
-    questions for each of the two stages (assemble, generate):
+    DESIGN, for readers new to this project: each stage (assemble,
+    generate) is controlled by ONE 4-state mode flag, answering three
+    questions in a single choice instead of three separate flags:
       1. Should this stage run at all?
-      2. If it runs, should it use the LLM (spend tokens) or not?
+      2. If it runs, should it use the LLM (spend tokens/CLI cost) or not?
+      3. If it uses the LLM, should it run in the cheap DEV_TOKEN_SAVER_MODE
+         smoke-test mode (dummy prompts/content, capped output, cheapest
+         model, no escalation), or a real full-cost run?
 
-    Older versions of this CLI answered both questions with a single
-    subcommand name (e.g. a "nightly" command that always ran both stages,
-    with a couple of flags bolted on) -- which made it hard to express "run
-    assemble WITH the LLM, but generate WITHOUT it" in one obvious command.
-    This version answers question 1 and question 2 with SEPARATE flags per
-    stage, which can be freely combined in one invocation:
+      --stage1-mode off               don't run Stage 1 at all (default)
+      --stage1-mode no-llm            deterministic filename routing only, zero LLM calls
+      --stage1-mode llm-token-saver   WITH the LLM, cheap smoke-test mode
+      --stage1-mode llm-full          WITH the LLM, real cost
 
-      --run-assemble            assemble runs, WITH the LLM
-      --run-assemble-no-llm     assemble runs, WITHOUT the LLM
-      --run-generate            generate runs, WITH the LLM (spends tokens, produces a .docx)
-      --run-generate-no-llm     generate runs, WITHOUT the LLM (zero-token preview only)
-      --run-both                shorthand for "--run-assemble --run-generate"
-                                 (both stages, both WITH the LLM)
+      --stage2-mode off               don't run Stage 2 at all (default)
+      --stage2-mode no-llm            zero-token preview only, no .docx produced
+      --stage2-mode llm-token-saver   WITH the LLM, cheap smoke-test mode
+      --stage2-mode llm-full          WITH the LLM, real cost -- actually produces the .docx
 
-    Any flag you don't pass for a given stage means "don't run that stage
-    at all". Examples:
-      --run-assemble --run-generate-no-llm
-          -> assemble WITH the LLM, generate WITHOUT it (the nightly policy)
-      --run-assemble-no-llm
-          -> ONLY assemble runs, and without the LLM; generate doesn't run
-      --run-both
-          -> both stages run, both WITH the LLM (a full, real, paid run)
+    Each stage's mode is fully independent. Earlier versions of this CLI had
+    a single global --dev-token-saver flag that toggled the same cost-safety
+    behavior for BOTH stages at once -- that meant "real Stage 1, but
+    smoke-test Stage 2" (or vice versa) couldn't be expressed in one
+    invocation. Folding the toggle into each stage's own mode choice removes
+    that coupling: --stage1-mode llm-full --stage2-mode llm-token-saver runs
+    a real (cheap-anyway, Haiku) Stage 1 pass while smoke-testing Stage 2's
+    wiring for pennies, in one command.
+
+    Examples:
+      --stage1-mode llm-full --stage2-mode no-llm
+          -> the nightly policy: assemble WITH the LLM, generate WITHOUT it
+      --stage1-mode llm-full --stage2-mode llm-full
+          -> a full, real, paid run of both stages
+      --stage1-mode llm-token-saver --stage2-mode llm-token-saver
+          -> cheap end-to-end smoke test of both stages' wiring
     """
     parser = argparse.ArgumentParser(
         description="Study Notes Automation Pipeline CLI",
         epilog="Example -- the nightly policy (assemble WITH the LLM, generate WITHOUT it):\n"
-               "  python3 src/main.py --run-assemble --run-generate-no-llm\n"
+               "  python3 src/main.py --stage1-mode llm-full --stage2-mode no-llm\n"
                "Example -- a full real run (both stages spend tokens):\n"
-               "  python3 src/main.py --run-both",
+               "  python3 src/main.py --stage1-mode llm-full --stage2-mode llm-full\n"
+               "Example -- cheap smoke test of both stages' wiring:\n"
+               "  python3 src/main.py --stage1-mode llm-token-saver --stage2-mode llm-token-saver",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--run-assemble", action="store_true",
-                         help="Run Stage 1 (assemble) WITH the LLM content router")
-    parser.add_argument("--run-assemble-no-llm", action="store_true",
-                         help="Run Stage 1 (assemble) WITHOUT the LLM (deterministic filename routing only)")
-    parser.add_argument("--run-generate", action="store_true",
-                         help="Run Stage 2 (generate) WITH the LLM -- spends tokens, actually produces the .docx")
-    parser.add_argument("--run-generate-no-llm", action="store_true",
-                         help="Run Stage 2 (generate) WITHOUT the LLM -- zero-token preview, no .docx produced")
-    parser.add_argument("--run-both", action="store_true",
-                         help="Shorthand for --run-assemble --run-generate (both stages, both WITH the LLM)")
+    parser.add_argument("--stage1-mode", choices=STAGE_MODE_CHOICES, default="off",
+                         help="Stage 1 (assemble/route files): 'off' don't run (default), 'no-llm' "
+                              "deterministic filename routing only, 'llm-token-saver' cheap smoke-test "
+                              "mode (real API/CLI call, near-zero cost, dummy content), 'llm-full' real "
+                              "routing at full cost")
+    parser.add_argument("--stage2-mode", choices=STAGE_MODE_CHOICES, default="off",
+                         help="Stage 2 (generate notes): 'off' don't run (default), 'no-llm' zero-token "
+                              "preview only, no .docx produced, 'llm-token-saver' cheap smoke-test mode "
+                              "(real API/CLI call, near-zero cost, dummy prompt, no usable output), "
+                              "'llm-full' real generation at full cost -- actually produces the .docx")
     parser.add_argument("--doctor", action="store_true",
                          help="Run environment health check diagnostics and exit (ignores every other flag)")
     parser.add_argument("--dry-run", action="store_true",
                          help="Assemble stage only: show planned actions without modifying any files")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("--quiet", action="store_true", help="Suppress INFO logs; show only warnings and errors")
-    parser.add_argument("--stage1-impl", choices=["legacy", "graph"], default="legacy",
-                         help="Stage 1 implementation: 'legacy' single-call router (default) or 'graph' "
-                              "multi-step Triage/Extraction flowchart (src/agents/stage1_graph.py)")
-    parser.add_argument("--stage2-impl", choices=["legacy", "graph"], default="legacy",
-                         help="Stage 2 implementation: 'legacy' monolithic loop (default) or 'graph' "
-                              "multi-agent flowchart (src/agents/stage2_graph.py)")
-    parser.add_argument("--dev-token-saver", action="store_true",
-                         help="Only meaningful with --stage2-impl graph --run-generate: cheap smoke-test "
-                              "mode (dummy prompts, capped output, cheapest model, no real PDF extraction). "
-                              "Real API calls at near-zero cost, but produces a placeholder .docx, not usable "
-                              "notes -- never use for a real run.")
+    parser.add_argument("--stage1-impl", choices=["legacy", "graph", "subprocess"], default="legacy",
+                         help="Stage 1 implementation: 'legacy' single-call SDK router (default), 'graph' "
+                              "multi-step Triage/Extraction flowchart (src/agents/stage1_graph.py), or "
+                              "'subprocess' -- the `claude` CLI billed via Claude subscription "
+                              "(src/claude_cli_subprocess/stage1.py)")
+    parser.add_argument("--stage2-impl", choices=["legacy", "graph", "subprocess"], default="legacy",
+                         help="Stage 2 implementation: 'legacy' monolithic loop (default), 'graph' "
+                              "multi-agent flowchart (src/agents/stage2_graph.py), or 'subprocess' -- "
+                              "NOT YET IMPLEMENTED, see docs/cli-subprocess-plan.md")
     return parser
 
 
-def resolve_stage(parser: argparse.ArgumentParser, stage_name: str, with_flag: bool, without_flag: bool, both_flag: bool):
-    """Work out whether ONE stage should run, and if so, with the LLM or not.
+def resolve_stage_mode(mode: str):
+    """Translate one --stageN-mode choice into (with_llm, token_saver), or
+    None if that stage shouldn't run at all.
 
-    Returns:
-      True  -- run this stage, WITH the LLM
-      False -- run this stage, WITHOUT the LLM
-      None  -- don't run this stage at all (no flag for it was given)
-
-    `parser.error(...)` prints a usage error and exits the process (this is
-    argparse's own standard way of reporting a bad combination of flags --
-    the same mechanism it uses for its own built-in validation), used here
-    when the flags for a stage contradict each other (e.g. asking to run
-    the SAME stage both with and without the LLM at once).
+      "off"              -> None (don't run this stage)
+      "no-llm"            -> (False, False)
+      "llm-token-saver"   -> (True, True)   -- with_llm, DEV_TOKEN_SAVER_MODE on
+      "llm-full"          -> (True, False)  -- with_llm, real full-cost run
     """
-    requested_with = with_flag or both_flag
-    if requested_with and without_flag:
-        parser.error(
-            f"--run-{stage_name} (or --run-both) and --run-{stage_name}-no-llm "
-            f"both apply to {stage_name} but disagree on whether to use the LLM -- pick one."
-        )
-    if requested_with:
-        return True
-    if without_flag:
-        return False
-    return None
+    if mode == "off":
+        return None
+    if mode == "no-llm":
+        return (False, False)
+    if mode == "llm-token-saver":
+        return (True, True)
+    if mode == "llm-full":
+        return (True, False)
+    raise ValueError(f"unknown --stageN-mode value: {mode!r}")  # unreachable: argparse choices= already validates
 
 
 def main():
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.stage2_impl == "subprocess":
+        parser.error(
+            "--stage2-impl subprocess is not yet implemented -- see the 'Stage 2: full "
+            "design' section of docs/cli-subprocess-plan.md. Use --stage2-impl legacy or "
+            "--stage2-impl graph."
+        )
+
     if args.quiet:
         logger.setLevel(logging.WARNING)
     elif args.verbose:
         logger.setLevel(logging.DEBUG)
 
-    if args.dev_token_saver:
-        # Set directly on the already-imported config module rather than via
-        # os.environ -- settings.py reads DEV_TOKEN_SAVER_MODE from the
-        # environment only once, at import time (which has already happened
-        # by now), so an env var set here would be read too late.
-        config.DEV_TOKEN_SAVER_MODE = True
-        logger.info("DEV_TOKEN_SAVER_MODE enabled via --dev-token-saver "
-                     "(dummy prompts, capped tokens, cheapest model -- never for a real run).")
-
     if args.doctor:
         sys.exit(run_doctor())
 
-    assemble_with_llm = resolve_stage(parser, "assemble", args.run_assemble, args.run_assemble_no_llm, args.run_both)
-    generate_with_llm = resolve_stage(parser, "generate", args.run_generate, args.run_generate_no_llm, args.run_both)
+    stage1 = resolve_stage_mode(args.stage1_mode)
+    stage2 = resolve_stage_mode(args.stage2_mode)
 
-    if assemble_with_llm is None and generate_with_llm is None:
+    if stage1 is None and stage2 is None:
         parser.print_help()
         sys.exit(EXIT_OK)
 
     exit_code = EXIT_OK
-    if assemble_with_llm is not None:
-        exit_code = run_assemble(dry_run=args.dry_run, no_llm=not assemble_with_llm, verbose=args.verbose,
+    if stage1 is not None:
+        with_llm, token_saver = stage1
+        # Set directly on the already-imported config module rather than via
+        # os.environ -- settings.py reads DEV_TOKEN_SAVER_MODE from the
+        # environment only once, at import time (which has already happened
+        # by now), so an env var set here would be read too late. Set fresh
+        # for EACH stage right before that stage runs, since the two stages'
+        # modes are independent -- e.g. Stage 1 llm-full, Stage 2
+        # llm-token-saver must not leak Stage 1's setting into Stage 2.
+        config.DEV_TOKEN_SAVER_MODE = token_saver
+        if token_saver:
+            logger.info("Stage 1: DEV_TOKEN_SAVER_MODE enabled via --stage1-mode llm-token-saver "
+                        "(dummy content, capped tokens, cheapest model, no escalation).")
+        exit_code = run_assemble(dry_run=args.dry_run, no_llm=not with_llm, verbose=args.verbose,
                                   stage1_impl=args.stage1_impl)
         if exit_code != EXIT_OK:
             # Assembly failed: don't proceed to generation even if it was
@@ -215,8 +227,13 @@ def main():
             logger.error("Assembly stage failed; skipping generation.")
             sys.exit(exit_code)
 
-    if generate_with_llm is not None:
-        exit_code = run_generate(live_mode=generate_with_llm, verbose=args.verbose, impl=args.stage2_impl)
+    if stage2 is not None:
+        with_llm, token_saver = stage2
+        config.DEV_TOKEN_SAVER_MODE = token_saver
+        if token_saver:
+            logger.info("Stage 2: DEV_TOKEN_SAVER_MODE enabled via --stage2-mode llm-token-saver "
+                        "(dummy prompt, capped output, cheapest model).")
+        exit_code = run_generate(live_mode=with_llm, verbose=args.verbose, impl=args.stage2_impl)
 
     sys.exit(exit_code)
 

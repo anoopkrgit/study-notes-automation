@@ -328,8 +328,27 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         return EXIT_FATAL
 
     logger.info("Entering LIVE generation mode...")
-    system_prompt = f"You are an expert study-notes generator.\n\nSKILL DEFINITION:\n{load_skill_prompt()}"
-    default_messages = [{"role": "user", "content": build_user_prompt(target_dir, top_transcripts, sup_files, expected_docx)}]
+    dev_mode = getattr(config, 'DEV_TOKEN_SAVER_MODE', False)
+    if dev_mode:
+        # Same cost-safe smoke-test toggle as src/agents/ (see
+        # src/agents/__init__.py's DEV_TOKEN_SAVER_MODE section) -- cheap
+        # model, dummy prompt, capped output, so this real multi-turn loop
+        # (progress file, MAX_ATTEMPTS, MAX_TURNS, execute_tool) can be
+        # exercised end-to-end for pennies instead of real generation-scale
+        # cost. Tool calls still execute for real (unlike src/agents/tools.py,
+        # which fakes most of its tools) -- AGENT_TOOLS here are generic
+        # read/write/bash, not the skill's own heavy build scripts, so
+        # there's nothing expensive to fake at that layer.
+        logger.info("[LIVE MODE] DEV_TOKEN_SAVER_MODE active -- cheap model, dummy prompt, capped output.")
+        generator_model = getattr(config, 'FIGURE_MODEL', 'claude-haiku-4-5')
+        max_tokens = 50
+        system_prompt = "You are a test agent in DEV_TOKEN_SAVER_MODE. Call at most one tool, then stop."
+        default_messages = [{"role": "user", "content": "This is a cost-safe smoke test of the generation loop's wiring. Do nothing further."}]
+    else:
+        generator_model = config.GENERATOR_MODEL
+        max_tokens = 8192
+        system_prompt = f"You are an expert study-notes generator.\n\nSKILL DEFINITION:\n{load_skill_prompt()}"
+        default_messages = [{"role": "user", "content": build_user_prompt(target_dir, top_transcripts, sup_files, expected_docx)}]
 
     messages = default_messages
     start_turn = 0
@@ -369,13 +388,13 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         for turn in range(start_turn, config.MAX_TURNS):
             logger.info(f"Generation loop turn {turn + 1}/{config.MAX_TURNS}...")
             resp = client.messages.create(
-                model=config.GENERATOR_MODEL,
-                max_tokens=8192,
+                model=generator_model,
+                max_tokens=max_tokens,
                 system=system_prompt,
                 messages=messages,
                 tools=AGENT_TOOLS,
             )
-            tracker.record(config.GENERATOR_MODEL, getattr(resp, "usage", None))
+            tracker.record(generator_model, getattr(resp, "usage", None))
 
             text_blocks = [b.text for b in resp.content if b.type == "text"]
             if text_blocks:

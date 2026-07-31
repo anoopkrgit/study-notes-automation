@@ -150,13 +150,18 @@ def run_router(content, model: str, tracker: TokenTracker = None):
     those reasons applies and logs it, but Stage 1 treats them all the same
     way here: give up on the router for now rather than burn the same
     (paid) failing call again on the very next file.
+
+    In DEV_TOKEN_SAVER_MODE, caps max_tokens down from 2048 to a small
+    value still large enough to hold a valid (if tiny) forced tool_use
+    JSON reply -- same cost-safe smoke-test toggle as src/agents/.
     """
     if not client:
         return None, True
+    dev_mode = getattr(config, 'DEV_TOKEN_SAVER_MODE', False)
     try:
         resp = client.messages.create(
             model=model,
-            max_tokens=2048,
+            max_tokens=150 if dev_mode else 2048,
             tools=[ROUTER_TOOL],
             tool_choice={"type": "tool", "name": "route_file"},
             messages=[{"role": "user", "content": content}],
@@ -193,9 +198,18 @@ def _parse_matches(obj: dict, buckets: dict):
 def llm_route(path: Path, buckets: dict, prior=None, tracker: TokenTracker = None):
     if not client:
         return [], False, "no-client"
-    doc_blocks = extract_content(path)
-    if not doc_blocks:
-        return [], False, "no-snippet"
+    dev_mode = getattr(config, 'DEV_TOKEN_SAVER_MODE', False)
+    if dev_mode:
+        # Cost-safe smoke-test toggle (see run_router's docstring): skip the
+        # real extract_content() call entirely -- base64-encoded PDF pages
+        # are this call's actual token cost driver, not the instructions
+        # text below, so a dummy text block (not a truncated real one) is
+        # what makes this cheap.
+        doc_blocks = [{"type": "text", "text": "Sample file content for a DEV_TOKEN_SAVER_MODE smoke test."}]
+    else:
+        doc_blocks = extract_content(path)
+        if not doc_blocks:
+            return [], False, "no-snippet"
 
     tax = "\n".join(f"- {full} | Ch-{chno} | {name}" for (full, chno), name in sorted(buckets.items()))
     prior_line = ""
