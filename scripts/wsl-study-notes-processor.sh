@@ -66,10 +66,17 @@ fi
 
 # 3. Execute Unified Python Engine
 #
-# Nightly token policy (deliberately explicit here as actual flags, not
-# left to whatever main.py's own argparse defaults happen to be, so this
-# behaviour is visible right where it actually runs and won't silently
-# change if a default is ever edited):
+# Which pipeline flags actually reach main.py is a pure CLI choice,
+# forwarded verbatim from however THIS script itself was invoked ("$@") --
+# never hardcoded here and never read from an env var, so choosing
+# legacy-vs-graph (and dummy-prompt-vs-real generation) never requires
+# editing this file. See `python3 src/main.py --help` for the full flag
+# set, in particular --stage1-impl/--stage2-impl {legacy,graph} and
+# --dev-token-saver.
+#
+# If this script is invoked with NO arguments at all (e.g. the nightly
+# Scheduled Task, whose registered action doesn't pass any), it falls back
+# to the long-standing nightly policy:
 #   --run-assemble        Stage 1 DOES use the LLM content router, so files
 #                          actually get classified and filed correctly
 #                          overnight.
@@ -79,13 +86,13 @@ fi
 #                          it) so you can see every morning exactly which
 #                          chapter is queued up next -- but spends ZERO
 #                          tokens, since nobody is watching to catch a bad
-#                          multi-turn generation run overnight. Run
-#                          `python3 src/main.py --run-generate` yourself,
-#                          watching the log, when you're ready to actually
-#                          generate a chapter's .docx for real.
-echo "$(date -Is)  [WSL-PROC]  Executing main Python pipeline: --run-assemble --run-generate-no-llm  (assemble: LLM ON, spends tokens | generate: LLM OFF, zero tokens)..."
+#                          multi-turn generation run overnight.
+if [ "$#" -eq 0 ]; then
+  set -- --run-assemble --run-generate-no-llm
+fi
+echo "$(date -Is)  [WSL-PROC]  Executing main Python pipeline with args: $*"
 set +e
-"$PYTHON_BIN" "$REPO_ROOT/src/main.py" --run-assemble --run-generate-no-llm
+"$PYTHON_BIN" "$REPO_ROOT/src/main.py" "$@"
 rc=$?
 set -e
 

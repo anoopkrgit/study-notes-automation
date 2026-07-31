@@ -34,6 +34,7 @@ import argparse
 import json
 import os
 import sys
+import zipfile
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -61,11 +62,24 @@ def load_skill_prompt() -> str:
     accuracy rules the generated .docx must follow) to inject as the system
     prompt. If the file is somehow missing, fall back to one line rather
     than crashing -- generation would still attempt something, just with
-    far less guidance."""
-    skill_path = Path(__file__).resolve().parent.parent / "templates" / "study-notes-skill.md"
-    if skill_path.exists():
-        return skill_path.read_text(encoding="utf-8")
-    logger.warning(f"Skill file missing at {skill_path}; using a minimal fallback prompt.")
+    far less guidance.
+
+    The skill ships as templates/study-notes.skill, a ZIP archive containing
+    SKILL.md plus its tools/lib/schema -- not a flat markdown file. (Prior to
+    this fix, this function pointed at a flat templates/study-notes-skill.md
+    that never existed, so every --live run silently fell back to the
+    one-line prompt below instead of the real skill definition.)"""
+    zip_path = Path(__file__).resolve().parent.parent / "templates" / "study-notes.skill"
+    if zip_path.exists():
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                if "SKILL.md" in zf.namelist():
+                    return zf.read("SKILL.md").decode("utf-8")
+                logger.warning(f"SKILL.md not found inside {zip_path}; using a minimal fallback prompt.")
+        except Exception as e:
+            logger.warning(f"Could not read skill archive {zip_path} ({e}); using a minimal fallback prompt.")
+    else:
+        logger.warning(f"Skill archive missing at {zip_path}; using a minimal fallback prompt.")
     return "Generate print-ready .docx study notes for the chapter."
 
 def select_target_chapter(target_root: Path) -> Path:
