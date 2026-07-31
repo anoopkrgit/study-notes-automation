@@ -11,7 +11,7 @@ a creative writing task. It only runs when Stage 1 is set to the "graph"
 implementation (STUDY_NOTES_STAGE1_IMPL=graph); see dispatch.py for how
 that choice is made, and note that as of this writing the graph path built
 here is not yet wired into the real file-processing loop (see
-func_assemble_chapters.py) -- the "legacy" single-call router remains the
+stage1_api.py) -- the "legacy" single-call router remains the
 one actually used by default.
 
 THE THREE-STEP FLOWCHART (a "graph" of three nodes)
@@ -249,14 +249,14 @@ def route_one_file(path: Path, buckets: dict | list, prior: dict | None = None) 
     returns a plain, simple answer.
 
     Drop-in replacement for llm_route() (the old, single-call version in
-    func_assemble_chapters.py): same inputs, same return shape --
+    stage1_api.py): same inputs, same return shape --
     (matches, limited, model_used) -- so callers don't need to know or
     care which implementation actually produced the answer.
 
     Each entry in `matches` is the SAME 6-tuple shape llm_route's own
     _parse_matches() produces -- (full_subject, chapter_no, chapter_name,
     role, confidence, reason) -- specifically because the calling code
-    (func_assemble_chapters.py's Stage A/B loops) reads matches by
+    (stage1_api.py's Stage A/B loops) reads matches by
     POSITION (m[0], m[1], m[4], ...), the same way regardless of which
     router produced them.
     """

@@ -437,7 +437,7 @@ def _text_block(text: str) -> list:
 def _image_block_from_bytes(data: bytes, media_type: str) -> list:
     """Wrap raw image bytes as an 'image' content block, base64-encoded
     (the API only accepts images as base64 text inside JSON, never raw
-    binary -- see also extract_content() in func_assemble_chapters.py,
+    binary -- see also extract_content() in stage1_api.py,
     which does the same thing for PDFs)."""
     encoded = base64.standard_b64encode(data).decode("ascii")
     return [{"type": "image", "source": {"type": "base64", "media_type": media_type, "data": encoded}}]

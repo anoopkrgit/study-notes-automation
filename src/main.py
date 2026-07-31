@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import settings as config
 from src.func_tools_and_utils import logger, EXIT_OK, EXIT_FATAL
-from src.direct_api.func_assemble_chapters import run_assemble
+from src.direct_api.stage1_api import run_assemble
 from src.agents.dispatch import generate_notes as run_generate
 
 def run_doctor():
@@ -45,7 +45,7 @@ def run_doctor():
     # ANTHROPIC_API_KEY is the only key this pipeline actually uses (both
     # the Stage 1 content router and the Stage 2 generator call the
     # Anthropic API directly). It's normally loaded from ~/.anthropic_env
-    # by func_assemble_chapters.py / func_generate_notes.py at import time
+    # by stage1_api.py / stage2_api.py at import time
     # (via python-dotenv), so by the time doctor() runs it should already
     # be present in os.environ if that file exists and is readable.
     has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
@@ -149,12 +149,12 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Stage 1 implementation: 'legacy' single-call SDK router (default), 'graph' "
                               "multi-step Triage/Extraction flowchart (src/agents/stage1_graph.py), or "
                               "'subprocess' -- the `claude` CLI billed via Claude subscription "
-                              "(src/claude_cli_subprocess/stage1.py)")
+                              "(src/claude_cli_subprocess/stage1_cli.py)")
     parser.add_argument("--stage2-impl", choices=["legacy", "graph", "subprocess"], default="legacy",
                          help="Stage 2 implementation: 'legacy' monolithic loop (default), 'graph' "
                               "multi-agent flowchart (src/agents/stage2_graph.py), or 'subprocess' -- "
                               "the `claude` CLI billed via Claude subscription "
-                              "(src/claude_cli_subprocess/stage2.py)")
+                              "(src/claude_cli_subprocess/stage2_cli.py)")
     return parser
 
 

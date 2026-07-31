@@ -1,10 +1,10 @@
 """
-stage2.py -- Stage 2 (note generation) via the `claude` CLI subprocess,
+stage2_cli.py -- Stage 2 (note generation) via the `claude` CLI subprocess,
 billed against a Claude subscription instead of the metered Anthropic API
 key (see src/claude_cli_subprocess/__init__.py for how this compares to
 src/direct_api/ and src/agents/).
 
-WHY THIS MODULE IS SHAPED DIFFERENTLY FROM direct_api.func_generate_notes
+WHY THIS MODULE IS SHAPED DIFFERENTLY FROM direct_api.stage2_api
 ---------------------------------------------------------------------------
 The legacy SDK implementation has to paste every transcript/supporting
 file's actual TEXT CONTENT into the conversation, because a raw Anthropic
@@ -18,7 +18,7 @@ package itself (templates/study-notes.skill), synced onto local disk by
 sync_skill_package() before the CLI call.
 
 ONE call per attempt, not a hand-rolled multi-turn loop: unlike
-direct_api.func_generate_notes's turn-by-turn tool loop, this module makes
+direct_api.stage2_api's turn-by-turn tool loop, this module makes
 a SINGLE `claude -p ...` subprocess call per attempt. Claude Code's own
 session persistence (`-r/--resume <session_id>`) is what allows a later
 attempt to continue an interrupted run, instead of us replaying full
@@ -104,7 +104,7 @@ def _chapter_workspace(target_dir: Path) -> Path:
 def build_cli_prompt(target_dir: Path, expected_docx: Path, resume: bool = False) -> str:
     """The per-run instructions given to `claude -p`. Deliberately SHORT
     and points at FOLDER PATHS, not file contents -- unlike
-    direct_api.func_generate_notes's build_user_prompt(), which has to
+    direct_api.stage2_api's build_user_prompt(), which has to
     paste file content into the message because a raw API call has no
     filesystem access. This CLI call has real filesystem access via
     --add-dir, so it doesn't need that.
@@ -194,7 +194,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
         # implementation time -- pilot-verification item, see plan step 1.
         cmd += ["-r", resume_session_id]
     if dev_mode:
-        # Same cost-safe smoke-test toggle Stage 1 uses (see stage1.py's
+        # Same cost-safe smoke-test toggle Stage 1 uses (see stage1_cli.py's
         # run_router()) -- a hard per-call dollar ceiling and a lower
         # reasoning-effort setting, since the CLI has no max_tokens flag.
         # Belt-and-suspenders alongside the empty --allowedTools above.
@@ -309,14 +309,14 @@ def classify_cli_result(result: dict) -> dict:
 
 def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
     """Stage 2's subprocess entrypoint -- same contract shape as
-    direct_api.func_generate_notes.run_generate() and
+    direct_api.stage2_api.run_generate() and
     agents.stage2_graph.run_stage2_chapter(): returns EXIT_OK,
     EXIT_RATE_LIMITED, or EXIT_FATAL.
     """
     logger.info(f"=== Stage 2: claude CLI Subprocess Generator (live_mode={live_mode}) ===")
 
     if not target_dir:
-        from src.direct_api.func_generate_notes import select_target_chapter
+        from src.direct_api.stage2_api import select_target_chapter
         target_dir = select_target_chapter(config.DEFAULT_TARGET_ROOT)
         if not target_dir:
             logger.info("No chapter folder ready for note generation. Nothing to do.")
@@ -333,7 +333,7 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
 
     # ==================== LIVE MODE ====================
     # Wrapped in a broad try/except, matching the same top-level resilience
-    # pattern direct_api.func_generate_notes.run_generate() and
+    # pattern direct_api.stage2_api.run_generate() and
     # agents.stage2_graph.run_stage2_chapter() both use: ANY unexpected
     # failure here (a corrupted skill zip, a permissions error, a bug in
     # prompt-building -- anything outside run_claude_cli()'s own

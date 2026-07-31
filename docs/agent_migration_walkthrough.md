@@ -44,8 +44,8 @@ Implemented the full multi-agent architecture described in [migration-to-agents.
 
 These remain byte-for-byte unchanged per the migration plan's rollout wrapper decision:
 
-- `src/func_generate_notes.py` — legacy monolithic loop intact
-- `src/func_assemble_chapters.py` — legacy router intact
+- `src/stage2_api.py` — legacy monolithic loop intact
+- `src/stage1_api.py` — legacy router intact
 - `src/func_tools_and_utils.py` — `classify_api_error`, `TokenTracker`, all tools reused as-is
 - `src/main.py` — import swap NOT yet applied (see Next Steps)
 - `tests/test_classify_and_rename.py`, `tests/test_main_cli.py`, `tests/test_utils.py` — untouched
@@ -74,7 +74,7 @@ During review of subagent output, I caught and fixed 3 issues:
 > [!IMPORTANT]
 > **One remaining wiring change.** The plan calls for a one-line import swap in `main.py` to route through the dispatcher. This was intentionally deferred since the plan says *"the only touch to any existing file"* — you should apply it manually when you're ready to test:
 > ```diff
-> -from src.func_generate_notes import run_generate
+> -from src.stage2_api import run_generate
 > +from src.agents.dispatch import generate_notes as run_generate
 > ```
 

@@ -2,7 +2,7 @@
 stage2_graph.py -- Stage 2 (Generation): the flowchart that actually turns
 one chapter's class transcripts into a finished study-notes .docx. This is
 the direct replacement for the OLD single-call design in
-src/func_generate_notes.py (still present, untouched -- see dispatch.py
+src/stage2_api.py (still present, untouched -- see dispatch.py
 for how the choice between old and new is made).
 
 THE FLOWCHART, END TO END
@@ -286,7 +286,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
     """THE single entry point other code calls to run Stage 2's entire
     flowchart for one chapter, from start to finish, and get back a plain
     result code. This is the direct equivalent of the old design's
-    run_generate() in func_generate_notes.py, and returns the exact same
+    run_generate() in stage2_api.py, and returns the exact same
     three possible exit codes so the rest of the pipeline (main.py, the
     nightly wrapper script, etc.) doesn't need to know or care which
     implementation actually ran:
@@ -302,7 +302,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
                      this function picks the next chapter itself (the same
                      "find one folder with input files and no output yet"
                      logic the old design uses -- see
-                     select_target_chapter in func_generate_notes.py).
+                     select_target_chapter in stage2_api.py).
         live_mode: if False ("mock mode"), do nothing and report success
                      immediately, WITHOUT spending any API calls -- this is
                      what lets the nightly automation do a free, zero-cost
@@ -312,7 +312,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
                      (see get_checkpointer in base.py).
     """
     if not chapter_dir:
-        from src.direct_api.func_generate_notes import select_target_chapter
+        from src.direct_api.stage2_api import select_target_chapter
         chapter_dir = select_target_chapter(config.DEFAULT_TARGET_ROOT)
         if not chapter_dir:
             logger.info("No chapter folder ready for note generation. Nothing to do.")
@@ -380,7 +380,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
     status = final_state.get('status', 'running')
 
     if status == 'done':
-        # Mirror legacy's explicit expected_docx.exists() guard (func_generate_notes.py)
+        # Mirror legacy's explicit expected_docx.exists() guard (stage2_api.py)
         # before trusting the graph's own "done" signal -- the graph's internal status
         # must never be the sole authority that a real .docx was actually produced.
         docx_produced = any(Path(chapter_dir_str).glob('*.docx'))

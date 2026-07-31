@@ -8,7 +8,7 @@ WHAT PROBLEM THIS FOLDER SOLVES
 --------------------------------
 The project turns raw class transcripts (PDFs) into a finished, print-ready
 study-notes Word document (.docx). The OLD way of doing that (still present,
-untouched, in src/func_generate_notes.py and src/func_assemble_chapters.py)
+untouched, in src/stage2_api.py and src/stage1_api.py)
 was: one single call to Claude that was handed a big toolbox of generic
 commands and told "figure out the whole job yourself, turn after turn".
 

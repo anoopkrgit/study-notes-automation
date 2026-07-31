@@ -32,10 +32,10 @@ from src.func_tools_and_utils import (
     logger as pipeline_logger,
 )
 import src.func_classify_and_rename as cr
-import src.direct_api.func_generate_notes as fgn
-from src.direct_api.func_generate_notes import select_target_chapter, run_generate
+import src.direct_api.stage2_api as fgn
+from src.direct_api.stage2_api import select_target_chapter, run_generate
 from src.func_tools_and_utils import EXIT_OK
-import src.direct_api.func_assemble_chapters as fac
+import src.direct_api.stage1_api as fac
 
 
 # ── sha256 tests ──────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@ chapter, the pipeline needs to answer three questions about a file like that:
 
 This file answers all three questions. It is the ONE place in the whole
 project that knows "lecture 5 of Physics is Chapter 4, Vectors" — every
-other file (func_assemble_chapters.py, tests, etc.) asks THIS file for the
+other file (stage1_api.py, tests, etc.) asks THIS file for the
 answer instead of guessing on its own. Keeping that knowledge in one place
 means that if the syllabus ever changes, you only have to fix it here.
 
@@ -100,7 +100,7 @@ except ImportError:
 # Logic/Coding lecture transcripts exist in the source data too, but they are
 # NOT part of the Physics/Chemistry/Maths (PCM) syllabus this pipeline builds
 # study notes for, so the rest of this project simply ignores them (see
-# func_assemble_chapters.py, which only keeps subjects in ("Phy","Chem","Maths")).
+# stage1_api.py, which only keeps subjects in ("Phy","Chem","Maths")).
 SUBJECT_FULL = {
     "Phy": "Physics",
     "Chem": "Chemistry",

@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock
 
 import settings as config
 from src.claude_cli_subprocess.common import build_claude_env
-from src.claude_cli_subprocess.stage1 import route_file, run_router, ROUTER_SCHEMA
+from src.claude_cli_subprocess.stage1_cli import route_file, run_router, ROUTER_SCHEMA
 
 def test_build_claude_env_pops_anthropic_api_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "secret")
@@ -69,7 +69,7 @@ def test_run_router_nonzero_returncode_is_not_treated_as_zero_matches():
         assert obj is None
 
 def test_route_file_escalates_on_low_confidence():
-    with patch('src.claude_cli_subprocess.stage1.run_router') as mock_rr:
+    with patch('src.claude_cli_subprocess.stage1_cli.run_router') as mock_rr:
         # First call returns low confidence, second returns high confidence
         mock_rr.side_effect = [
             ({"matches": [{"subject": "Physics", "chapter_no": 1, "confidence": 0.2}]}, False),
@@ -93,7 +93,7 @@ def test_route_file_dev_token_saver_mode_never_escalates(monkeypatch):
     confidence -- escalating to a pricier model is the single biggest cost
     lever for this router."""
     monkeypatch.setattr(config, "DEV_TOKEN_SAVER_MODE", True)
-    with patch('src.claude_cli_subprocess.stage1.run_router') as mock_rr:
+    with patch('src.claude_cli_subprocess.stage1_cli.run_router') as mock_rr:
         mock_rr.return_value = ({"matches": []}, False)
         buckets = {("Physics", 1): "Forces"}
         matches, limited, model = route_file(Path("/fake"), buckets)
@@ -108,7 +108,7 @@ def test_route_file_dev_token_saver_mode_never_escalates(monkeypatch):
 
 def test_route_file_dev_token_saver_mode_uses_dummy_prompt(monkeypatch):
     monkeypatch.setattr(config, "DEV_TOKEN_SAVER_MODE", True)
-    with patch('src.claude_cli_subprocess.stage1.run_router') as mock_rr:
+    with patch('src.claude_cli_subprocess.stage1_cli.run_router') as mock_rr:
         mock_rr.return_value = ({"matches": []}, False)
         route_file(Path("/some/real/transcript.pdf"), {("Physics", 1): "Forces"})
         prompt_used = mock_rr.call_args[0][0]

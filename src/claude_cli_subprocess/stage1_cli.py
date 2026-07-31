@@ -49,7 +49,7 @@ def run_router(prompt: str, model: str):
         # usage-limit-shaped must NOT be treated the same as "the router
         # genuinely found zero matches" -- that would silently misfile
         # files that were never actually routed at all. Mirrors
-        # direct_api.func_assemble_chapters.run_router()'s philosophy: any
+        # direct_api.stage1_api.run_router()'s philosophy: any
         # failure to get a real answer means "give up on the router for
         # now", signalled the same way as a detected usage limit so the
         # caller falls back to filename-based routing instead of trusting
@@ -103,7 +103,7 @@ def route_file(path: Path, buckets: dict, prior=None, tracker=None):
     In DEV_TOKEN_SAVER_MODE (see src/agents/__init__.py for the shared
     toggle this mirrors): uses a dummy prompt that never asks the CLI to
     actually read `path` (real file reads are this call's token cost
-    driver, same reasoning as direct_api.func_assemble_chapters.llm_route),
+    driver, same reasoning as direct_api.stage1_api.llm_route),
     and skips the escalation call entirely regardless of confidence --
     escalating to a pricier model is the single biggest cost lever here.
     Combined with run_router()'s --max-budget-usd/--effort flags, a full

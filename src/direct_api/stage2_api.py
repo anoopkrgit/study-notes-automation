@@ -1,5 +1,5 @@
 """
-func_generate_notes.py
+stage2_api.py
 
 Stage 2 Generator module: an "agentic" loop that talks to the Claude API
 directly (no `claude` CLI, no Claude Code subscription -- see the project
