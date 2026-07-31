@@ -1,8 +1,39 @@
 """
 func_tools_and_utils.py
 
-Shared utilities: unified logging, file hashing, state management,
-and tool definitions for agentic generation.
+A shared TOOLBOX used by every part of this pipeline (Stage 1 file-routing,
+Stage 2 note-generation, and all three parallel implementations in
+src/direct_api/, src/agents/, src/claude_cli_subprocess/). It has four
+unrelated jobs bundled into one file because each one is small and every
+other file needs it:
+
+  1. LOGGING -- one shared "logger" object (see setup_logger()) that every
+     other file imports and writes progress/warning/error lines through, so
+     all output ends up in one consistent, timestamped format.
+
+  2. FILE FINGERPRINTING & PROGRESS TRACKING -- sha256() fingerprints a
+     file's exact contents, and load_state()/save_state() persist a JSON
+     file on disk recording which files have already been processed, so a
+     second run doesn't redo (and re-pay for) work the first run already
+     finished. acquire_lock()/release_lock() protect that JSON file from
+     two pipeline runs writing to it at the same time.
+
+  3. API ERROR TRIAGE -- classify_api_error() looks at a failed call to
+     Anthropic's AI service and decides whether it's worth automatically
+     retrying later (e.g. a temporary rate limit) or not (e.g. the account
+     ran out of credit, which waiting can never fix).
+
+  4. "TOOLS" FOR THE AI TO CALL -- the functions from tool_read() onward.
+     When an AI model is given a list of "tools" (small, named actions with
+     a description of what they do), it can choose, on its own, to call one
+     mid-conversation instead of just returning text -- e.g. asking to read
+     a file, write a file, or run a command -- and gets the tool's result
+     fed back into the conversation so it can decide what to do next. This
+     is how the AI in this project actually reads source material and
+     writes the finished study-notes files: every "tool" below is one
+     specific, narrowly-scoped action the AI is allowed to take, and
+     nothing else. Each one is deliberately restricted (see tool_bash()) so
+     an unattended overnight run can never do more than it's meant to.
 """
 
 import base64
@@ -111,7 +142,19 @@ class TokenTracker:
         log.info(f"  TOTAL  calls={total_calls}  input_tokens={total_in}  output_tokens={total_out}")
 
 def sha256(path: Path) -> str:
-    """Compute SHA-256 hash of a file."""
+    """Compute a SHA-256 "fingerprint" of a file's exact contents.
+
+    A hash function reads a file's bytes and produces a short, fixed-length
+    string (the "hash") that is effectively unique to those exact bytes --
+    change even one character in the file and the hash comes out completely
+    different. This lets the pipeline answer "has this file changed since
+    last time?" by comparing hashes instead of comparing entire file
+    contents (or trusting the file's last-modified timestamp, which cloud
+    sync tools can reset even when nothing actually changed). The state
+    file (see load_state()/save_state()) stores each processed file's hash
+    so already-handled files aren't re-processed (and, for LLM calls,
+    re-paid-for) on the next run.
+    """
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
@@ -137,6 +180,21 @@ def is_ignorable(p: Path) -> bool:
             or p.name.startswith(".") or p.stat().st_size == 0)
 
 def acquire_lock(timeout: int = 60) -> bool:
+    """Claim exclusive permission to read or write the shared state file.
+
+    A "lock" here is simply a marker folder on disk: if it doesn't exist,
+    creating it succeeds and this function returns True, meaning "you now
+    have exclusive access." If it already exists, someone else (another
+    pipeline run) got there first, and this function waits and retries
+    (checking every 2 seconds) until either the lock is free or `timeout`
+    seconds pass, at which point it gives up and returns False. This
+    prevents two pipeline runs happening at once from both reading the
+    state file, both making changes, and then one run's save overwriting
+    (silently erasing) the other's -- a classic "lost update" bug. If a
+    lock is found to be older than 5 minutes, it's assumed to be left over
+    from a run that crashed without cleaning up after itself, and is
+    forcibly removed so the pipeline doesn't get stuck waiting forever.
+    """
     lock_dir = config.STATE_FILE.with_suffix(".lockdir")
     start = time.time()
     while time.time() - start < timeout:
@@ -158,6 +216,10 @@ def acquire_lock(timeout: int = 60) -> bool:
     return False
 
 def release_lock():
+    """Give up exclusive access to the state file (delete the lock marker
+    folder created by acquire_lock()), so the next run -- or a run that was
+    waiting -- can claim it. Safe to call even if the lock is already gone
+    (the OSError from a missing folder is simply ignored)."""
     lock_dir = config.STATE_FILE.with_suffix(".lockdir")
     try:
         lock_dir.rmdir()
@@ -329,22 +391,46 @@ def write_retry_epoch(retry_epoch: int):
 
 
 # --- Agentic Tools Implementation ---
+# Everything below is a "tool": a small Python function the AI model is told
+# about (name, plain-English description, and what arguments it takes) and
+# may choose to call, by name, while it works through a task -- the same way
+# a person might use a text editor or a search box. The AI never runs this
+# Python code directly; instead it asks ("please call tool_read with
+# path=X"), the surrounding code (see src/direct_api/stage2_api.py and
+# src/agents/base.py) actually calls the matching function here, and the
+# function's RETURN VALUE (a plain string, in most of these) is handed back
+# to the AI as the result, so it can decide what to do next. Every function
+# in this section returns a human-readable status/error string rather than
+# raising an exception on failure, on purpose -- an exception would crash
+# the whole pipeline run, whereas a returned error string lets the AI see
+# what went wrong and try something else, the same way a person would read
+# an error message and adjust.
+
 def tool_read(path: str) -> str:
-    """Read contents of a text file."""
+    """Tool: read and return a text file's entire contents, so the AI can
+    see what's inside a source document or a file it wrote earlier."""
     p = Path(path)
     if not p.exists():
         return f"Error: File '{path}' not found."
     return p.read_text(encoding="utf-8", errors="replace")
 
 def tool_write(path: str, content: str) -> str:
-    """Write content to a file."""
+    """Tool: create (or completely overwrite) a text file with the given
+    content, creating any missing parent folders first. This is how the AI
+    actually produces its output files on disk, e.g. content.json."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
     return f"Successfully wrote {len(content)} characters to {path}"
 
 def tool_edit(path: str, old_string: str, new_string: str) -> str:
-    """Edit file by replacing old_string with new_string."""
+    """Tool: make a small, targeted change to an existing file by finding
+    one exact snippet of text (`old_string`) and replacing just its FIRST
+    occurrence with `new_string`, leaving the rest of the file untouched.
+    This is safer and cheaper than tool_write() for a one-line fix, since it
+    doesn't require the AI to re-supply the entire file's contents just to
+    change a few words. Fails with an error string (rather than guessing)
+    if `old_string` isn't found verbatim in the file."""
     p = Path(path)
     if not p.exists():
         return f"Error: File '{path}' not found."
@@ -356,13 +442,20 @@ def tool_edit(path: str, old_string: str, new_string: str) -> str:
     return f"Successfully replaced content in {path}"
 
 def tool_glob(pattern: str, base_dir: str = ".") -> str:
-    """Find files matching glob pattern."""
+    """Tool: list every file under `base_dir` whose name matches a wildcard
+    `pattern` (e.g. "*.pdf" for every PDF, "**/*.json" for every JSON file
+    in any subfolder), so the AI can discover what files actually exist
+    without having to guess exact names. Returns the list as JSON text."""
     p = Path(base_dir)
     matches = [str(m) for m in p.glob(pattern)]
     return json.dumps(matches, indent=2)
 
 def tool_grep(pattern: str, file_path: str) -> str:
-    """Search pattern in a file."""
+    """Tool: search one file's text for every place matching a "regular
+    expression" `pattern` (a compact mini-language for describing text
+    patterns, e.g. "Chapter \\d+" matches "Chapter" followed by any number)
+    and return every match found, as JSON text. Lets the AI find something
+    specific inside a large file without reading the whole thing."""
     p = Path(file_path)
     if not p.exists():
         return f"Error: File '{file_path}' not found."

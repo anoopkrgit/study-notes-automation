@@ -97,9 +97,19 @@ def _validate_path(requested: str, allowed_root: str) -> Path:
 # what to do.
 # -----------------------------------------------------------------------------
 def tool_ingest(pdf_path: str, chapter_dir: str) -> dict:
-    """Wraps tools/ingest.py: PDF -> text or autocropped PNG pages, SHA256-cached.
-    Returns {ok: bool, extracted_files: list[str], errors: list[str]}.
-    In DEV_TOKEN_SAVER_MODE: skip subprocess, return dummy data.
+    """Take one source PDF (a class transcript or textbook scan) and turn it
+    into whatever Author can actually read: either plain extracted text, or
+    -- if the PDF is mostly images/handwriting -- auto-cropped page images.
+    Runs tools/ingest.py as a separate program (see the module docstring's
+    "MOST TOOLS BELOW ARE THIN WRAPPERS" section) and reads back what it
+    produced. Results are cached by the file's SHA256 checksum (a short
+    fingerprint of the file's exact contents), so re-running on the same
+    PDF a second time skips the work instead of redoing it.
+
+    Inputs: pdf_path (the source PDF to read), chapter_dir (this chapter's
+    own folder, where extracted files get written).
+    Output: {ok: bool, extracted_files: list[str], errors: list[str]}.
+    In DEV_TOKEN_SAVER_MODE: skip the subprocess entirely, return dummy data.
     """
     if getattr(config, "DEV_TOKEN_SAVER_MODE", False):
         return {"ok": True, "extracted_files": ["dummy.txt"], "errors": []}
@@ -125,9 +135,17 @@ def tool_ingest(pdf_path: str, chapter_dir: str) -> dict:
 # further down for the matching tool-schema list handed to Claude.
 # -----------------------------------------------------------------------------
 def tool_read_source(path: str, chapter_dir: str) -> str:
-    """Read one transcript/supporting text file. Path must resolve within chapter_dir.
-    Validates path doesn't escape chapter_dir (traversal safety). Returns file content as string.
-    In DEV_TOKEN_SAVER_MODE: return 'Sample transcript content for testing.'
+    """Let Author read the plain-text content of one source file (a
+    transcript or supporting-material text file already produced by
+    tool_ingest, above). `path` is checked with _validate_path first, so
+    Author can only read files inside its own chapter's folder.
+
+    Inputs: path (the file to read), chapter_dir (the folder it must be
+    inside). Output: the file's text content as a plain string (or an
+    "Error: ..." string if the file is missing/unreadable -- returned as
+    text rather than raised as an exception, since that's how the agent
+    loop feeds tool results back to Claude either way).
+    In DEV_TOKEN_SAVER_MODE: skip the real file, return placeholder text.
     """
     if getattr(config, "DEV_TOKEN_SAVER_MODE", False):
         return "Sample transcript content for testing."
@@ -142,15 +160,31 @@ def tool_read_source(path: str, chapter_dir: str) -> str:
         return f"Error reading file: {str(e)}"
 
 def tool_view_source_page(path: str, page: int, chapter_dir: str) -> list:
-    """Render one PDF page of a source doc as an image. Path-scoped to chapter_dir.
-    Delegates to tool_view_pdf_page from func_tools_and_utils."""
+    """Let Author actually SEE one page of a source PDF as an image, for
+    cases where the raw extracted text (tool_read_source) isn't enough --
+    e.g. a diagram, a handwritten equation, or a table whose layout matters.
+    `path` is validated the same way as tool_read_source. The real
+    PDF-to-image conversion is shared plumbing (tool_view_pdf_page, in
+    func_tools_and_utils.py) reused by several tools, not reimplemented here.
+    Output: a list of content blocks in the format the Anthropic API expects
+    for "here is an image" (not a plain string, unlike tool_read_source)."""
     safe_path = _validate_path(path, chapter_dir)
     return tool_view_pdf_page(str(safe_path), page)
 
 def tool_write_content_json(content: dict, chapter_dir: str) -> dict:
-    """Validate content against schema/content.schema.json via tools/validate.py
-    before writing to <chapter_dir>/content.json.
-    Returns {ok: bool, errors: list[str]}.
+    """Save Author's finished chapter TEXT as content.json -- the file that
+    holds every section, explanation, and worked example Author has
+    written, in a structured (not free-form) shape the rest of the
+    pipeline can read reliably. Before writing, the content is checked
+    against schema/content.schema.json (a machine-readable list of "a
+    valid content.json must have these fields, in this shape") by running
+    tools/validate.py as a separate program -- if it fails that check, the
+    file is NOT written, and the errors are handed back so Author can see
+    what was wrong and try again.
+
+    Inputs: content (the dict Author wants to save), chapter_dir (where to
+    save it). Output: {ok: bool, errors: list[str]}.
+    In DEV_TOKEN_SAVER_MODE: skip validation, write whatever was given.
     """
     if getattr(config, "DEV_TOKEN_SAVER_MODE", False):
         out_path = Path(chapter_dir) / "content.json"
@@ -182,9 +216,16 @@ def tool_write_content_json(content: dict, chapter_dir: str) -> dict:
         os.remove(tmp_path)
 
 def tool_write_figures_json(figures: dict, chapter_dir: str) -> dict:
-    """Validate figures against schema/figures.schema.json via tools/validate.py
-    before writing to <chapter_dir>/figures.json.
-    Returns {ok: bool, errors: list[str]}.
+    """Same idea as tool_write_content_json just above, but for DIAGRAM
+    SPECIFICATIONS instead of text: figures.json describes what each
+    diagram in the chapter should look like (labels, shapes, layout) as
+    structured data -- not the image itself, just the instructions for
+    drawing it. tool_figbuild (further below) is what actually turns this
+    into a real picture. Validated against schema/figures.schema.json the
+    same way, before being written to <chapter_dir>/figures.json.
+
+    Output: {ok: bool, errors: list[str]}.
+    In DEV_TOKEN_SAVER_MODE: skip validation, write whatever was given.
     """
     if getattr(config, "DEV_TOKEN_SAVER_MODE", False):
         out_path = Path(chapter_dir) / "figures.json"
@@ -216,9 +257,12 @@ def tool_write_figures_json(figures: dict, chapter_dir: str) -> dict:
         os.remove(tmp_path)
 
 def tool_read_qa_feedback(chapter_dir: str) -> dict:
-    """On a QA retry loop, read the qa_report.
-    Returns the qa_report dict or {} if no previous QA feedback.
-    """
+    """When Author is being asked to try again after a failed quality check
+    (see the QA tools further below, and qa_node in stage2_graph.py), this
+    lets Author read exactly what went wrong last time, so the retry can
+    fix the actual reported problems instead of guessing.
+    Output: the saved qa_report dict, or {} if there isn't one yet (i.e.
+    this is Author's first attempt, not a retry)."""
     if getattr(config, "DEV_TOKEN_SAVER_MODE", False):
         return {}
     
@@ -237,8 +281,12 @@ def tool_read_qa_feedback(chapter_dir: str) -> dict:
 # look at that image to confirm it rendered correctly.
 # -----------------------------------------------------------------------------
 def tool_figbuild(figures_json_path: str, chapter_dir: str) -> dict:
-    """Wraps lib/figbuild.py: figures.json -> rendered PNGs.
-    Returns {ok: bool, rendered: list[str], errors: list[str]}.
+    """Turn the diagram SPECIFICATIONS in figures.json into actual PICTURE
+    files (PNG images) that can be embedded in the finished document. Runs
+    lib/figbuild.py as a separate program to do the actual drawing.
+    Output: {ok: bool, rendered: list[str] (paths to the PNGs it made),
+    errors: list[str]}.
+    In DEV_TOKEN_SAVER_MODE: skip drawing, return a fake file name.
     """
     if getattr(config, "DEV_TOKEN_SAVER_MODE", False):
         return {"ok": True, "rendered": ["dummy_fig.png"], "errors": []}
@@ -257,7 +305,10 @@ def tool_figbuild(figures_json_path: str, chapter_dir: str) -> dict:
         return {"ok": False, "rendered": [], "errors": [result.stderr or result.stdout]}
 
 def tool_view_figure(png_path: str, chapter_dir: str) -> list:
-    """View a rendered figure PNG. Path-scoped to chapter_dir's figure output dir."""
+    """Let the Figure agent actually LOOK at a diagram tool_figbuild just
+    drew, so it can judge (as Claude, looking at the image) whether the
+    picture came out right before reporting success. Same image-block
+    output format as tool_view_source_page, above."""
     safe_path = _validate_path(png_path, chapter_dir)
     return tool_view_image(str(safe_path))
 
@@ -268,8 +319,14 @@ def tool_view_figure(png_path: str, chapter_dir: str) -> list:
 # the whole pipeline exists to produce.
 # -----------------------------------------------------------------------------
 def tool_compile_docx(content_json_path: str, figures_json_path: str, chapter_dir: str) -> dict:
-    """Wraps lib/build.js: content.json + figures -> .docx.
-    Returns {ok: bool, docx_path: str | None, stderr: str | None}.
+    """The final assembly step: combine the written text (content.json) and
+    the rendered diagram images (from tool_figbuild) into one actual Word
+    document (.docx) -- this is the file the whole pipeline exists to
+    produce. Runs lib/build.js (a Node.js program, not Python -- hence
+    `node` instead of `python3` in the subprocess call below) to do the
+    real document assembly/formatting work.
+    Output: {ok: bool, docx_path: str | None, stderr: str | None}.
+    In DEV_TOKEN_SAVER_MODE: skip real assembly, write a placeholder file.
     """
     docx_path = str(Path(chapter_dir) / "output.docx")
     
@@ -308,7 +365,20 @@ def tool_compile_docx(content_json_path: str, figures_json_path: str, chapter_di
 # model cost.
 # -----------------------------------------------------------------------------
 def tool_run_structural_gates(content_json_path: str, figures_json_path: str) -> dict:
-    """Runs validate.py, verify.py, invariants.py.
+    """The first of three automated "quality gates" (checkpoints a chapter
+    must pass before it's considered finished -- see the module-level
+    comment above this section for why these are plain deterministic
+    checks, not an AI judgment call). This one checks the STRUCTURE of the
+    written files, in three steps:
+      1. schema check -- does content.json/figures.json have all the
+         required fields, in the right shape? ("schema" here just means
+         "the rulebook describing what fields a valid file must contain".)
+      2. verify.py -- deeper content checks beyond just having the right
+         fields (e.g. does the arithmetic in worked examples actually add
+         up).
+      3. invariants.py -- checks rules that must ALWAYS hold no matter what
+         (e.g. every figure mentioned in the text actually exists in
+         figures.json).
     Always runs for real, even in DEV_TOKEN_SAVER_MODE -- QA gates are the one
     thing that dev mode must NOT fake, since they're what proves the QA<->Author
     retry loop actually works. Dev-mode dummy content is expected to genuinely
@@ -316,7 +386,7 @@ def tool_run_structural_gates(content_json_path: str, figures_json_path: str) ->
     skill_dir = Path(ensure_skill_extracted())
     failures = []
     schema_ok = verify_ok = invariants_ok = True
-    
+
     # schema (content & figures)
     validate_script = skill_dir / 'tools' / 'validate.py'
     schema_content = skill_dir / 'schema' / 'content.schema.json'
@@ -354,7 +424,12 @@ def tool_run_structural_gates(content_json_path: str, figures_json_path: str) ->
     }
 
 def tool_run_quality_gates(content_json_path: str, chapter_dir: str) -> dict:
-    """Runs pedagogy.py and baseline.py.
+    """The second quality gate: checks whether the chapter is actually GOOD
+    teaching material, not just structurally valid. pedagogy.py checks
+    whether the explanations follow the project's teaching style rules
+    (e.g. worked examples before practice problems); baseline.py compares
+    this chapter's document against a known-good reference chapter to
+    catch quality regressions.
     Always runs for real, even in DEV_TOKEN_SAVER_MODE -- see tool_run_structural_gates
     docstring for why QA gates specifically are never stubbed."""
     skill_dir = Path(ensure_skill_extracted())
@@ -384,7 +459,14 @@ def tool_run_quality_gates(content_json_path: str, chapter_dir: str) -> dict:
     }
 
 def tool_run_document_qa(docx_path: str, content_json_path: str, do_pdf_check: bool = False) -> dict:
-    """Runs qa.py (OOXML integrity, math presence, page-break safety, figure cross-check).
+    """The third quality gate: checks the actual FINISHED WORD DOCUMENT
+    (not the underlying JSON) -- does the .docx file open without
+    corruption ("OOXML" is the technical file format Word documents are
+    built from), does it contain the math it's supposed to, are page
+    breaks placed safely, and does every figure referenced in the text
+    correspond to a real image in the document. `do_pdf_check=True` adds a
+    slower extra check that also renders the document to PDF and inspects
+    it page by page.
     Always runs for real, even in DEV_TOKEN_SAVER_MODE -- see tool_run_structural_gates
     docstring for why QA gates specifically are never stubbed."""
     skill_dir = Path(ensure_skill_extracted())

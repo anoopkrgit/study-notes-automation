@@ -106,7 +106,15 @@ def ingest_node(state: Stage2State) -> dict:
 # narrow tool list (from tools.py), and its own job instructions
 # (from prompts.py) -- this is the actual place where "one big agent with
 # every tool" (the old design) becomes "several small, focused agents"
-# (this new design).
+# (this new design). `max_agent_turns` caps how many back-and-forth
+# steps (AI reply -> run a tool -> AI reply again -> ...) that one agent
+# is allowed before it's forced to stop, as a safety net against an agent
+# looping forever without finishing its job.
+
+# Author gets the most turns (25) and, by default, the strongest/most
+# expensive model (config.GENERATOR_MODEL) -- writing the actual chapter
+# content is the one genuinely creative, open-ended step in this
+# flowchart, so it needs the most room and the most capable model.
 author_node = make_agent_node(
     node_name='author',
     model_name=getattr(config, 'AUTHOR_MODEL', config.GENERATOR_MODEL),
@@ -116,6 +124,9 @@ author_node = make_agent_node(
     tool_registry=TOOL_REGISTRY
 )
 
+# Figure's job (turn figures.json into real PNG images) is narrow and
+# mechanical, so it gets a cheap model (claude-haiku-4-5 by default) and
+# fewer allowed turns.
 figure_node = make_agent_node(
     node_name='figure',
     model_name=getattr(config, 'FIGURE_MODEL', 'claude-haiku-4-5'),
@@ -125,6 +136,9 @@ figure_node = make_agent_node(
     tool_registry=TOOL_REGISTRY
 )
 
+# Compiler's job (assemble the final .docx from content.json + rendered
+# figures) is the most mechanical of all three, so it gets the fewest
+# turns of any agent in this flowchart.
 compiler_node = make_agent_node(
     node_name='compiler',
     model_name=getattr(config, 'COMPILER_MODEL', 'claude-haiku-4-5'),
@@ -167,10 +181,16 @@ def qa_node(state: Stage2State) -> dict:
     figures_json_path = str(Path(chapter_dir) / 'figures.json')
     docx_path = str(Path(chapter_dir) / 'output.docx')
     
+    # Each tool_run_*_gates() call below runs its own group of pass/fail
+    # checks and returns a dict of individual results -- none of these
+    # calls involve the AI; they're plain deterministic checks (does the
+    # file match the required shape? does the math check out? etc.).
     structural = tool_run_structural_gates(content_json_path, figures_json_path)
     quality = tool_run_quality_gates(content_json_path, chapter_dir)
     doc_qa = tool_run_document_qa(docx_path, content_json_path)
-    
+
+    # A "gate" only counts as OK if every check inside it passed -- one
+    # failure anywhere in the group fails the whole group.
     structural_ok = (
         structural.get('schema_ok', False) and
         structural.get('verify_ok', False) and

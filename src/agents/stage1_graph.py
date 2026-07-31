@@ -75,9 +75,17 @@ ROUTER_TOOL = {
                 "properties": {
                     "subject": {"type": "string", "enum": ["Physics", "Chemistry", "Maths"]},
                     "chapter_no": {"type": "integer"},
+                    # "spine" = a class transcript (the file this chapter's
+                    # notes are mainly built from); "supporting" = extra
+                    # reference material for the same chapter (see
+                    # Stage2State's transcripts/supporting fields in base.py).
                     "role": {"type": "string", "enum": ["spine", "supporting"]},
+                    # A 0-1 number: how sure Claude is about this match. Not
+                    # currently used to auto-accept/reject anything here --
+                    # kept for logging and possible future "flag low-
+                    # confidence matches for human review" logic.
                     "confidence": {"type": "number"},
-                    "reason": {"type": "string"},
+                    "reason": {"type": "string"},  # Claude's own one-line explanation, for logs
                 }}},
             "agrees_with_filename": {"type": ["boolean", "null"]},
         }
@@ -104,19 +112,30 @@ def extract_node(state: Stage1State) -> dict:
         path = Path(file_path)
         if path.suffix.lower() == '.pdf':
             try:
+                # pypdf is a Python library for reading/writing PDF files.
+                # PdfReader opens the original file; PdfWriter is used here
+                # to build a brand-new, SMALLER PDF containing only the
+                # first few pages, so only that trimmed excerpt (not the
+                # whole document) gets sent to Claude.
                 from pypdf import PdfReader, PdfWriter
                 reader = PdfReader(path)
                 pages_to_extract = min(getattr(config, 'SNIPPET_PAGES', 5), len(reader.pages))
-                
+
                 writer = PdfWriter()
                 for i in range(pages_to_extract):
                     writer.add_page(reader.pages[i])
-                
+
+                # Claude's API is a web/JSON API, which can only carry text,
+                # not raw binary files. "base64" is a standard way to turn
+                # arbitrary binary data (like PDF bytes) into plain text
+                # characters so it can be embedded inside a JSON message and
+                # safely travel over the network; the API decodes it back
+                # into the real PDF on Anthropic's end.
                 out_stream = io.BytesIO()
                 writer.write(out_stream)
                 pdf_bytes = out_stream.getvalue()
                 encoded_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-                
+
                 extracted_content = [{
                     "type": "document",
                     "source": {
@@ -159,25 +178,36 @@ def triage_node(state: Stage1State) -> dict:
     extracted_content = state.get('extracted_content')
     if not extracted_content:
         return {'matches': [], 'limited': False, 'model_used': ''}
-        
+
     model = getattr(config, 'TRIAGE_MODEL', getattr(config, 'ROUTER_MODEL', 'claude-haiku-4-5'))
     is_dev = getattr(config, 'DEV_TOKEN_SAVER_MODE', False)
     if is_dev:
         # DEV_TOKEN_SAVER_MODE forces every agent to the same cheap model used
         # elsewhere in the project (config.FIGURE_MODEL == claude-haiku-4-5).
         model = getattr(config, 'FIGURE_MODEL', 'claude-haiku-4-5')
-    
+
+    # `anthropic.Anthropic()` opens a connection to Claude's API (reading
+    # the API key from the environment). TokenTracker just counts how many
+    # tokens (roughly: word-fragments) this call costs, for logging/cost
+    # tracking -- it has no effect on the classification itself.
     client = anthropic.Anthropic()
     tracker = TokenTracker()
-    
+
     prompt = f"File: {state['file_path']}\nAvailable buckets: {state['buckets']}\nPrior: {state.get('prior', None)}\n\nPlease categorize this file using the route_file tool."
-    
-    # We append the text prompt to the content blocks
+
+    # A message sent to Claude is a list of "content blocks", each one
+    # either a chunk of text or an embedded file. Here the file excerpt
+    # from extract_node (a PDF/text block) is followed by one more text
+    # block -- the actual instruction -- so Claude receives "here's the
+    # file, now classify it" as a single combined message.
     messages = [
         {"role": "user", "content": extracted_content + [{"type": "text", "text": prompt}]}
     ]
-    
+
     try:
+        # `tool_choice={"type": "tool", "name": "route_file"}` is what FORCES
+        # Claude to answer using the ROUTER_TOOL schema defined above,
+        # instead of replying with free-form sentences.
         response = client.messages.create(
             model=model,
             max_tokens=50 if is_dev else 1024,
@@ -185,16 +215,21 @@ def triage_node(state: Stage1State) -> dict:
             tools=[ROUTER_TOOL],
             tool_choice={"type": "tool", "name": "route_file"}
         )
-        
+
         usage = response.usage
         tracker.record(model, response.usage)
-        
+
+        # Claude's reply is also a list of content blocks; because the call
+        # above forced a single tool use, there should be exactly one
+        # 'tool_use' block here, and `block.input` is its structured answer
+        # (already validated against ROUTER_TOOL's schema) -- no text
+        # parsing needed.
         matches = []
         for block in response.content:
             if block.type == 'tool_use' and block.name == 'route_file':
                 matches = block.input.get('matches', [])
                 break
-                
+
         return {'matches': matches, 'limited': False, 'model_used': model}
     except Exception as e:
         err_info = classify_api_error(e)
@@ -218,14 +253,16 @@ def reconcile_node(state: Stage1State) -> dict:
         return {'matches': matches, 'limited': True, 'model_used': state['model_used']}
         
     filtered_matches = []
-    
-    # Match parsing logic
+
+    # Keep only entries that actually name BOTH a subject and a chapter
+    # number -- anything missing either one is a malformed answer and gets
+    # silently dropped rather than risking a misfiled document.
     for match in matches:
         subj = match.get('subject')
         chap = match.get('chapter_no')
         if subj and chap is not None:
             filtered_matches.append(match)
-            
+
     return {'matches': filtered_matches, 'limited': state.get('limited', False), 'model_used': state.get('model_used', '')}
 
 def build_stage1_graph():
@@ -261,8 +298,15 @@ def route_one_file(path: Path, buckets: dict | list, prior: dict | None = None) 
     router produced them.
     """
     graph = build_stage1_graph()
+    # "Compiling" a graph turns the node/edge description built by
+    # build_stage1_graph() into something that can actually be run.
     compiled = graph.compile()
 
+    # `buckets` is the caller's master list of valid "subject + chapter"
+    # bins, keyed by (subject, chapter_no) when it's a dict. Claude only
+    # needs to see plain bin NAMES (e.g. "Physics Chapter 3") to choose
+    # from -- the dict's richer (subject, chapter_no) keys are converted
+    # back out of Claude's answer later, near the bottom of this function.
     if isinstance(buckets, dict):
         buckets_list = [f"{k[0]} Chapter {k[1]}" if isinstance(k, tuple) else str(k) for k in buckets.keys()]
     else:
