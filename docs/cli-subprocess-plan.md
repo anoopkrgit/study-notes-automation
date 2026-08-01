@@ -443,7 +443,7 @@ as-is since those implementations are untouched.
 ## Verification (Stage 1, now)
 
 ```bash
-cd /mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned
+cd /path/to/project/root
 
 # 1. Full existing suite — confirms the move broke nothing
 pytest tests/ -q

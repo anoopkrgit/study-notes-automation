@@ -94,7 +94,7 @@ one fully replaces the task's action; only run the one you want active.
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`""
 Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
 
@@ -104,7 +104,7 @@ placeholder `.docx`, not usable notes:
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-token-saver --stage2-mode llm-token-saver`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-token-saver --stage2-mode llm-token-saver`""
 Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
 
@@ -113,7 +113,7 @@ real `.docx`:
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"C:\06-PROJECTS\trial\study-notes-automation-redesigned\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full`""
 Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
 
