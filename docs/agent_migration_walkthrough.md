@@ -2,7 +2,7 @@
 
 ## Summary
 
-Implemented the full multi-agent architecture described in [migration-to-agents.md](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/docs/migration-to-agents.md). All new code is **net-new files** — zero existing implementation files were modified (except additive config/requirements changes).
+Implemented the full multi-agent architecture described in [migration-to-agents.md](../docs/migration-to-agents.md). All new code is **net-new files** — zero existing implementation files were modified (except additive config/requirements changes).
 
 ---
 
@@ -12,22 +12,22 @@ Implemented the full multi-agent architecture described in [migration-to-agents.
 
 | File | Size | Purpose |
 |------|------|---------|
-| [\_\_init\_\_.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/__init__.py) | 256B | Package docstring with rollout wrapper instructions |
-| [base.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/base.py) | 7.0KB | `Stage1State`, `Stage2State` TypedDicts, `make_agent_node()` factory (raw Anthropic SDK tool loop), `get_checkpointer()` (SqliteSaver) |
-| [prompts.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/prompts.py) | 4.0KB | ZIP-based SKILL.md loading, prompt caching with `cache_control: ephemeral`, DEV mode dummy prompts |
-| [tools.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/tools.py) | 18KB | All 13 tool wrappers (subprocess-based), Anthropic tool schemas (`AUTHOR_TOOLS`, `FIGURE_TOOLS`, `COMPILER_TOOLS`), `TOOL_REGISTRY`, path traversal safety |
-| [stage1_graph.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/stage1_graph.py) | 7.1KB | Stage 1 LangGraph: `extract_node` → `triage_node` → `reconcile_node`, `route_one_file()` drop-in |
-| [stage2_graph.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/stage2_graph.py) | 7.8KB | Stage 2 LangGraph: `ingest` → `author` → `figure` → `compiler` → `qa` with conditional QA↔Author retry, `run_stage2_chapter()` driver |
-| [dispatch.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/src/agents/dispatch.py) | 1.5KB | Rollout wrapper: `generate_notes()` / `route_file()` dispatch to legacy or graph based on env vars |
+| [\_\_init\_\_.py](../src/agents/__init__.py) | 256B | Package docstring with rollout wrapper instructions |
+| [base.py](../src/agents/base.py) | 7.0KB | `Stage1State`, `Stage2State` TypedDicts, `make_agent_node()` factory (raw Anthropic SDK tool loop), `get_checkpointer()` (SqliteSaver) |
+| [prompts.py](../src/agents/prompts.py) | 4.0KB | ZIP-based SKILL.md loading, prompt caching with `cache_control: ephemeral`, DEV mode dummy prompts |
+| [tools.py](../src/agents/tools.py) | 18KB | All 13 tool wrappers (subprocess-based), Anthropic tool schemas (`AUTHOR_TOOLS`, `FIGURE_TOOLS`, `COMPILER_TOOLS`), `TOOL_REGISTRY`, path traversal safety |
+| [stage1_graph.py](../src/agents/stage1_graph.py) | 7.1KB | Stage 1 LangGraph: `extract_node` → `triage_node` → `reconcile_node`, `route_one_file()` drop-in |
+| [stage2_graph.py](../src/agents/stage2_graph.py) | 7.8KB | Stage 2 LangGraph: `ingest` → `author` → `figure` → `compiler` → `qa` with conditional QA↔Author retry, `run_stage2_chapter()` driver |
+| [dispatch.py](../src/agents/dispatch.py) | 1.5KB | Rollout wrapper: `generate_notes()` / `route_file()` dispatch to legacy or graph based on env vars |
 
 ### `tests/` — Test Suite (4 new files)
 
 | File | Size | Tests |
 |------|------|-------|
-| [test_dispatch.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/tests/test_dispatch.py) | 2.1KB | Legacy/graph dispatch routing for both stages |
-| [test_agents_tools.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/tests/test_agents_tools.py) | 3.7KB | Path traversal safety, DEV mode dummies, TOOL_REGISTRY completeness |
-| [test_stage1_graph.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/tests/test_stage1_graph.py) | 4.2KB | Extract/triage/reconcile nodes, route_one_file return shape |
-| [test_stage2_graph.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/tests/test_stage2_graph.py) | 4.2KB | Ingest/QA nodes, route_after_qa logic (pass/retry/fail), mock mode, graph structure |
+| [test_dispatch.py](../tests/test_dispatch.py) | 2.1KB | Legacy/graph dispatch routing for both stages |
+| [test_agents_tools.py](../tests/test_agents_tools.py) | 3.7KB | Path traversal safety, DEV mode dummies, TOOL_REGISTRY completeness |
+| [test_stage1_graph.py](../tests/test_stage1_graph.py) | 4.2KB | Extract/triage/reconcile nodes, route_one_file return shape |
+| [test_stage2_graph.py](../tests/test_stage2_graph.py) | 4.2KB | Ingest/QA nodes, route_after_qa logic (pass/retry/fail), mock mode, graph structure |
 
 ---
 
@@ -35,8 +35,8 @@ Implemented the full multi-agent architecture described in [migration-to-agents.
 
 | File | Change |
 |------|--------|
-| [settings.py](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/config/settings.py) | Added: `AUTHOR_MODEL`, `FIGURE_MODEL`, `COMPILER_MODEL`, `TRIAGE_MODEL`, `QA_MAX_RETRY_LOOPS`, `GRAPH_CHECKPOINT_DIR`, `STAGE1_IMPL`, `STAGE2_IMPL`, `DEV_TOKEN_SAVER_MODE` |
-| [requirements.txt](file:///c:/06-PROJECTS/trial/study-notes-automation-redesigned/requirements.txt) | Added: `langgraph>=0.2.0` |
+| [settings.py](../config/settings.py) | Added: `AUTHOR_MODEL`, `FIGURE_MODEL`, `COMPILER_MODEL`, `TRIAGE_MODEL`, `QA_MAX_RETRY_LOOPS`, `GRAPH_CHECKPOINT_DIR`, `STAGE1_IMPL`, `STAGE2_IMPL`, `DEV_TOKEN_SAVER_MODE` |
+| [requirements.txt](../requirements.txt) | Added: `langgraph>=0.2.0` |
 
 ---
 

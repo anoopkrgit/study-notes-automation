@@ -672,7 +672,7 @@ removal candidate) doesn't exist in this repo; nothing to delete.
 **Step 1 — resolve the skill-discovery mechanic manually, before trusting any wrapper code:**
 ```bash
 mkdir -p /tmp/skill-smoketest && cd /tmp/skill-smoketest
-python3 -m zipfile -e "/mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned/templates/study-notes.skill" ./.claude/skills/study-notes/
+python3 -m zipfile -e "/path/to/project/root/templates/study-notes.skill" ./.claude/skills/study-notes/
 env -u ANTHROPIC_API_KEY claude -p "/study-notes list the tools available to you" --output-format json --permission-mode acceptEdits --allowedTools Read,Glob
 claude -p --help | grep -A2 -i resume
 ```
@@ -683,7 +683,7 @@ change to `config.CLAUDE_SKILL_INSTALL_DIR`, not a design pivot.
 
 **Step 2 — static / zero-invocation checks:**
 ```bash
-cd /mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned
+cd /path/to/project/root
 pytest tests/ -q
 python3 src/main.py --stage2-mode no-llm --stage2-impl subprocess
 python3 src/main.py --doctor
