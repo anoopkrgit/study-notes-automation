@@ -54,3 +54,7 @@ _prev/
 generation-workspace/
 .skill-runtime/
 .study-notes/
+
+# ── LangGraph dev/test run artifacts (checkpoints, debug progress dumps) ────
+state/graph-checkpoints/
+state/progress/
