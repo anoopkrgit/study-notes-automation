@@ -36,6 +36,24 @@ def test_run_router_success():
         assert kwargs["cwd"] == str(config.LOCAL_RUNTIME_ROOT)
         assert "ANTHROPIC_API_KEY" not in kwargs["env"]
 
+def test_run_router_result_survives_trailing_non_result_line():
+    """A real result line followed by a later line that also matches the
+    '{"type"...}' scan shape but has no "result" key (e.g. a trailing
+    progress/status event) must not blank out the already-found answer."""
+    with patch('subprocess.run') as mock_run:
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = (
+            '{"type": "message", "result": "{\\"matches\\": []}"}\n'
+            '{"type": "summary", "duration_ms": 42}'
+        )
+        mock_result.stderr = ""
+        mock_run.return_value = mock_result
+
+        obj, limited = run_router("prompt", "model")
+        assert limited is False
+        assert obj == {"matches": []}
+
 def test_run_router_usage_limit():
     with patch('subprocess.run') as mock_run:
         mock_result = MagicMock()

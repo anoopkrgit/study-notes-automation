@@ -175,7 +175,21 @@ def qa_node(state: Stage2State) -> dict:
     an incremented retry counter (qa_pass_count -- despite the name, this
     counts ATTEMPTS, not successes), and the flowchart's new status --
     'done' only if every single check passed, otherwise 'running' (meaning:
-    not finished yet, more work may be needed)."""
+    not finished yet, more work may be needed).
+
+    If an earlier node (author/figure/compiler) already set a terminal
+    failure status (failed_retryable/failed_fatal/failed_turns_exhausted),
+    that status is passed straight through instead of being overwritten --
+    qa runs after every node on this flowchart's fixed edges regardless of
+    what happened upstream, so without this check a real upstream failure
+    (e.g. a bad API key, or an agent that ran out of its turn budget with
+    incomplete content.json) would silently be replaced by whatever qa's
+    own gates conclude, letting route_after_qa's status check (below)
+    never actually see it."""
+    existing_status = state.get('status')
+    if existing_status in ('failed_retryable', 'failed_fatal', 'failed_turns_exhausted'):
+        return {'status': existing_status}
+
     chapter_dir = state['chapter_dir']
     content_json_path = str(Path(chapter_dir) / 'content.json')
     figures_json_path = str(Path(chapter_dir) / 'figures.json')
@@ -238,7 +252,8 @@ def route_after_qa(state: Stage2State) -> Literal['pass', 'retry', 'fail']:
     an outcome rather than always being the same fixed next step -- it
     decides, in order:
       1. If an earlier step hit a real error (an API failure that
-         classify_api_error judged either retryable-later or a dead end):
+         classify_api_error judged either retryable-later or a dead end,
+         or an agent that ran out of its turn budget without finishing):
          stop, and report that failure outward.
       2. If every QA check passed: stop, successfully.
       3. If QA failed, but we haven't yet used up all
@@ -251,7 +266,7 @@ def route_after_qa(state: Stage2State) -> Literal['pass', 'retry', 'fail']:
     'retry', 'fail' -- are exactly the three arrows drawn out of the "qa"
     box in build_stage2_graph's flowchart, below.
     """
-    if state.get('status') in ('failed_retryable', 'failed_fatal'):
+    if state.get('status') in ('failed_retryable', 'failed_fatal', 'failed_turns_exhausted'):
         return 'fail'
 
     qa_report = state.get('qa_report', {})
@@ -314,8 +329,10 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
         EXIT_RATE_LIMITED (42)  -- hit a retryable error (e.g. rate limit);
                                    safe to try again later.
         EXIT_FATAL (1)          -- failed for good this run (QA never
-                                   passed after all retries, or a
-                                   non-retryable error occurred).
+                                   passed after all retries, a
+                                   non-retryable error occurred, or an
+                                   agent exhausted its turn budget without
+                                   finishing).
 
     Args:
         chapter_dir: which chapter's folder to work on. If left empty/None,

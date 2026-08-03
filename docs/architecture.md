@@ -12,16 +12,21 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
    │  [Env Stabilization]
    ├─► Assert C# Win32 keep-awake lock (`SetThreadExecutionState`) to prevent sleep
    ├─► Verify/Relaunch `GoogleDriveFS.exe` process & await `G:\` drive availability
-   └─► Invoke WSL Bash wrapper: `wsl.exe -e bash -lc "<wsl-repo-root>/scripts/wsl-study-notes-processor.sh"`
+   └─► Invoke WSL Bash wrapper with the registered task's `-PipelineArgs`:
+       `wsl.exe -e bash -lc "<wsl-repo-root>/scripts/wsl-study-notes-processor.sh --stage1-mode llm-full --stage2-mode no-llm"`
+       (the nightly policy's flags come from Task Scheduler's registered action, NOT a
+        hardcoded default -- see docs/setup-guide.md's registration examples; invoked
+        with no args at all, both stages default to `off` and nothing runs)
    │
    ▼
 3. wsl-study-notes-processor.sh (WSL Entrypoint & Remount Helper)
    │  [Env Stabilization]
    ├─► Heal Linux mount via `sudo remount-gdrive` if `/mnt/g` handle is stale
    ├─► Check `DUMMY_UNTIL` timestamp gate (exit early if testing without tokens)
-   └─► Launch Python engine: `python3 src/main.py --stage1-mode llm-full --stage2-mode no-llm`
-       (assemble WITH the LLM, generate WITHOUT it -- zero tokens for generation;
-        see readme.md's Quick Start for every --stageN-mode/--stageN-impl combination)
+   └─► Launch Python engine, forwarding its own args verbatim: `python3 src/main.py "$@"`
+       (with the nightly policy's flags: assemble WITH the LLM, generate WITHOUT it --
+        zero tokens for generation; see readme.md's Quick Start for every
+        --stageN-mode/--stageN-impl combination)
    │
    ▼
 4. main.py (Python Engine -- dispatches to ONE of THREE parallel implementations per stage)

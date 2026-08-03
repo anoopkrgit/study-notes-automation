@@ -73,11 +73,14 @@ class Stage2State(TypedDict):
                                  # separate so Author/Figure/Compiler don't see
                                  # each other's turn-by-turn back-and-forth, only
                                  # the final files each one produces
-    status: Literal['running', 'done', 'failed_retryable', 'failed_fatal']
+    status: Literal['running', 'done', 'failed_retryable', 'failed_fatal',
+                     'failed_turns_exhausted']
                                  # the flowchart's current verdict: still going,
                                  # finished successfully, failed but worth
-                                 # retrying later (e.g. rate limit), or failed
-                                 # for good (e.g. bad API key)
+                                 # retrying later (e.g. rate limit), failed
+                                 # for good (e.g. bad API key), or an agent
+                                 # ran out of its turn budget without ever
+                                 # reaching a terminal stop_reason
 
 class Stage1State(TypedDict):
     """Everything the Stage 1 (Triage/Extraction) flowchart carries between
@@ -97,6 +100,11 @@ class Stage1State(TypedDict):
                                         # for this file (caller should fall back to
                                         # filing by filename alone)
     model_used: str                    # which model actually answered, for logging
+    tracker: TokenTracker | None       # caller's shared cost/token tracker, if any --
+                                        # passed through so triage_node's API call gets
+                                        # recorded against the caller's own totals
+                                        # instead of a throwaway local tracker (see
+                                        # route_one_file/triage_node in stage1_graph.py)
 
 def make_agent_node(
     node_name: str,
@@ -244,6 +252,16 @@ def make_agent_node(
                             tool_fn = tool_registry.get(tool_name)
                             if tool_fn:
                                 try:
+                                    if 'chapter_dir' in tool_args:
+                                        # Never trust the model-supplied
+                                        # chapter_dir -- it's the sandbox
+                                        # root every path-scoping check in
+                                        # tools.py validates against, so
+                                        # letting the model set it lets it
+                                        # define its own boundary. Always
+                                        # use this run's real chapter_dir
+                                        # instead.
+                                        tool_args = {**tool_args, 'chapter_dir': chapter_dir}
                                     result = tool_fn(**tool_args)
                                     tool_results.append({
                                         "type": "tool_result",
@@ -308,6 +326,16 @@ def make_agent_node(
                     logger.error(f"Fatal error in {node_name}: {error_info.get('reason')}")
                     status = 'failed_fatal'
                 break
+        else:
+            # The loop ran out of range(max_agent_turns) iterations without
+            # ever hitting a `break` above -- i.e. Claude was still asking
+            # for tools (stop_reason == 'tool_use') on the very last turn,
+            # with no terminal stop_reason and no exception. Left alone,
+            # `status` would still read whatever it was initialized to
+            # ('running'), which downstream flowchart edges would treat as
+            # "still in progress" rather than a failure -- signal the
+            # turn-budget cutoff explicitly instead.
+            status = 'failed_turns_exhausted'
 
         turn_count += 1
 

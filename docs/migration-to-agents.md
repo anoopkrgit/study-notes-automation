@@ -330,8 +330,12 @@ When `DEV_TOKEN_SAVER_MODE` is on, all five behaviors below apply together (it i
 **How to actually run this smoke test so it lands in `logs/study-notes-pipeline.log`:** invoking `python3 src/main.py` directly does NOT write to that log file (the Python logger is stdout-only by design — see `src/func_tools_and_utils.py::setup_logger`'s docstring; only `scripts/wsl-study-notes-processor.sh`'s `exec >>"$LOG_FILE" 2>&1` redirect populates it). Run the smoke test through the wrapper instead:
 
 ```
-DEV_TOKEN_SAVER_MODE=1 STUDY_NOTES_STAGE2_IMPL=graph bash scripts/wsl-study-notes-processor.sh
+DEV_TOKEN_SAVER_MODE=1 STUDY_NOTES_STAGE2_IMPL=graph bash scripts/wsl-study-notes-processor.sh --stage2-mode llm-token-saver
 ```
+
+`--stage2-mode llm-token-saver` must be passed explicitly -- the wrapper has no implicit
+no-args nightly fallback of its own, so invoking it with no args at all would leave Stage 2
+at `main.py`'s own `off` default and never touch the graph at all.
 
 This exercises the exact same code path as the real nightly automation (mount check, dummy-mode gate, `main.py` invocation) with the dev-token-saver flags applied, and the run's full output ends up appended to `logs/study-notes-pipeline.log` like any other pipeline run.
 

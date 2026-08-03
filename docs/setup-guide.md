@@ -94,9 +94,14 @@ one fully replaces the task's action; only run the one you want active.
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`""
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-mode llm-full --stage2-mode no-llm`""
 Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
 ```
+
+`-PipelineArgs` must be given explicitly here -- `wsl-study-notes-processor.sh` has no implicit
+no-args nightly fallback of its own (an invocation with no args leaves both stages at
+`main.py`'s own `off` default, i.e. does nothing); `win-install-setup.ps1`'s registration
+already includes this same `-PipelineArgs` for exactly that reason.
 
 **2. Agentic, dummy prompts** — new multi-agent graph pipeline, real API calls but
 capped/cheap (`DEV_TOKEN_SAVER_MODE`, via `llm-token-saver`); a smoke test, produces a
@@ -124,10 +129,11 @@ Check which mode is currently registered at any time:
 ```
 
 **Caveats:**
-- `win-install-setup.ps1` re-registers this task with `-Force` and no arguments
-  whenever it runs (e.g. a re-run of `install.bat`), silently reverting to mode 1. If a
-  non-legacy mode needs to survive a reinstall, that script's own `$action` definition
-  needs the same `-PipelineArgs` appended.
+- `win-install-setup.ps1` re-registers this task with `-Force` and mode 1's
+  `-PipelineArgs` (`--stage1-mode llm-full --stage2-mode no-llm`) whenever it runs (e.g.
+  a re-run of `install.bat`), silently reverting to mode 1. If a non-legacy mode needs to
+  survive a reinstall, that script's own `$action` definition needs the matching
+  `-PipelineArgs` for that mode instead.
 - The rate-limit retry task (`StudyNotesRetry`, registered automatically by
   `win-environment-setup.ps1` on exit code 42) carries the same `-PipelineArgs`
   forward, so a rate-limited run resumes in the same mode it started in.

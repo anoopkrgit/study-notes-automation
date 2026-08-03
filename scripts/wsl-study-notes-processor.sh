@@ -17,7 +17,7 @@ NAME
 SYNOPSIS
     wsl-study-notes-processor.sh [-h|--help]
     wsl-study-notes-processor.sh [OPTIONS...]
-    wsl-study-notes-processor.sh                (no args -> nightly default)
+    wsl-study-notes-processor.sh                (no args -> both stages off)
 
 DESCRIPTION
     Windows Task Scheduler's nightly job launches this script inside WSL
@@ -31,9 +31,16 @@ DESCRIPTION
     -PipelineArgs parameter, through this script -- down to src/main.py,
     with zero file edits required at any layer.
 
-    Invoked with NO arguments at all (the nightly Scheduled Task's
-    default, since its registered action passes none), falls back to:
+    Invoked with NO arguments at all, "$@" is empty and src/main.py's own
+    --stage1-mode/--stage2-mode defaults ("off") apply -- BOTH stages are
+    off, nothing runs, nothing is spent, main.py just prints its own help
+    and exits 0. There is no implicit nightly fallback anymore: whoever
+    wants a stage to actually run, including the nightly Scheduled Task,
+    must pass the desired --stageN-mode flags explicitly (see
+    docs/setup-guide.md's Task Scheduler -PipelineArgs examples, e.g.
         --stage1-mode llm-full --stage2-mode no-llm
+    for the long-standing nightly policy: assemble WITH the LLM, generate
+    WITHOUT it).
 
 OPTIONS
     All options below are src/main.py's own flags, forwarded verbatim --
@@ -81,7 +88,11 @@ OPTIONS
 
 EXAMPLES
     wsl-study-notes-processor.sh
-        Nightly default: assemble WITH the LLM (legacy), generate preview only.
+        No args -> both stages off (main.py's own default). Does nothing.
+
+    wsl-study-notes-processor.sh --stage1-mode llm-full --stage2-mode no-llm
+        The nightly policy: assemble WITH the LLM (legacy), generate preview
+        only. Must now be passed explicitly -- see DESCRIPTION above.
 
     wsl-study-notes-processor.sh --stage1-mode llm-full --stage2-mode llm-full
         A full, real, paid run of both stages (legacy implementation, the default).
@@ -185,22 +196,18 @@ fi
 # {legacy,graph,subprocess} and --stage1-mode/--stage2-mode
 # {off,no-llm,llm-token-saver,llm-full}.
 #
-# If this script is invoked with NO arguments at all (e.g. the nightly
-# Scheduled Task, whose registered action doesn't pass any), it falls back
-# to the long-standing nightly policy:
-#   --stage1-mode llm-full   Stage 1 DOES use the LLM content router at full
-#                             cost, so files actually get classified and
-#                             filed correctly overnight.
-#   --stage2-mode no-llm     Stage 2 runs WITHOUT the LLM: it still does
-#                             everything except talk to the API (picks the
-#                             next chapter, lists its input files, logs all
-#                             of it) so you can see every morning exactly
-#                             which chapter is queued up next -- but spends
-#                             ZERO tokens, since nobody is watching to catch
-#                             a bad multi-turn generation run overnight.
-if [ "$#" -eq 0 ]; then
-  set -- --stage1-mode llm-full --stage2-mode no-llm
-fi
+# No implicit default is injected here: invoked with NO arguments at all,
+# "$@" is empty and main.py's own --stage1-mode/--stage2-mode defaults
+# ("off") apply, so BOTH stages are off and main.py just prints its help
+# and exits 0 -- nothing runs and nothing is spent. This used to silently
+# swap in a hardcoded nightly policy (--stage1-mode llm-full --stage2-mode
+# no-llm) whenever "$#" was exactly 0, but that meant ANY single extra
+# flag (e.g. --verbose) skipped the swap entirely and silently ran neither
+# stage -- a real regression. Whoever wants stages to actually run,
+# including the nightly Scheduled Task, must now pass the desired
+# --stageN-mode flags explicitly (see docs/setup-guide.md's Task Scheduler
+# -PipelineArgs examples) -- "on by explicit choice" instead of "on by
+# implicit fallback."
 echo "$(date -Is)  [WSL-PROC]  Executing main Python pipeline with args: $*"
 set +e
 "$PYTHON_BIN" "$REPO_ROOT/src/main.py" "$@"
