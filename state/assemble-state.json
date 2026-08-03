@@ -1311,6 +1311,100 @@
       "kind": "review",
       "route": "review (llm-sonnet)",
       "ts": "2026-07-27T19:07:15"
+    },
+    "bd5267d4f51e3ef2c091d3dfe70feffa717e5c2ca3fa010aef0f5bb36e8801e7": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh101.pdf",
+      "name": "iemh101.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch5-Straight-Lines/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is Chapter 1 from 'Ganita Manjari Grade 9 Part I' titled 'Orienting Yourself: The Use of Coordinates'. It introduces the 2-D Cartesian Coordinate System, coordinate axes, plotting points, and the foundational concepts of coordinate geometry. This directly supports the study of Straight Lines (Maths Ch-5), which fundamentally relies on the coordinate system concepts taught here. The historical context and mathematical foundations of coordinates are essential prerequisite knowledge for straight line equations and geometry.",
+      "ts": "2026-08-01T01:54:58"
+    },
+    "dbc30792858fa1858d248e4802977cb794b537c1a49f166e2777ea37baf57b02": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh102.pdf",
+      "name": "iemh102.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Introduction to Linear Polynomials' and covers polynomial concepts including degree, coefficients, and terms. While the primary focus is on linear and higher-degree polynomials rather than quadratic equations specifically, it establishes foundational polynomial algebra that directly supports understanding quadratic equations.",
+      "ts": "2026-08-01T01:55:02"
+    },
+    "f1b291650c2139f101ef623f124aa7bc4ed654771c9c557334089f08acc697a9": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh103.pdf",
+      "name": "iemh103.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch6-Set-Theory/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'The World of Numbers' and covers foundational mathematical concepts including Natural Numbers, the concept of zero (\u015ah\u016bnya), and number systems. These are fundamental topics that underpin Set Theory, which deals with collections of numbers and their properties.",
+      "ts": "2026-08-01T01:55:07"
+    },
+    "c18321e78f4da53ccc2e587a143597678ce0e48f0d7bd31d3a8794684ac1d70e": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh104.pdf",
+      "name": "iemh104.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch1-Quadratic-Equations/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document focuses on algebraic identities and polynomial expressions. Section 4.2 uses geometric visualization of (a+b)\u00b2 = a\u00b2 + 2ab + b\u00b2, and covers verification of identities for various number types. While the file is labeled Chapter 4, the content on algebraic identities and polynomial manipulation directly supports Quadratic Equations (Ch-1) which requires foundational understanding of these algebraic manipulations and expansions.",
+      "ts": "2026-08-01T01:55:11"
+    },
+    "f35918e40c5d5ca72b1a9499081ab65a46bddbb625d0188a4597fdca9db71393": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh105.pdf",
+      "name": "iemh105.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is Chapter 5 from a Grade 9 textbook titled 'I'm Up and Down, and Round and Round', which is entirely focused on circles. It covers circle definitions, properties (centre, radius, chords, diameter), symmetries, and foundational circle geometry concepts that are core content for the Circles chapter.",
+      "ts": "2026-08-01T01:55:15"
+    },
+    "82afd11834306e742e8c33c8f2b6cb85f346372675e76bec906a857175503a54": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh106.pdf",
+      "name": "iemh106.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch2-Circles/supporting"
+      ],
+      "route": "llm-haiku \u2014 The document is titled 'Measuring Space: Perimeter and Area' and focuses on circles, their circumference, diameter, and the C/D ratio. Section 6.2 explicitly covers 'Perimeter of a Circle \u2014 The C/D Ratio'. This is core content for the Circles chapter in mathematics.",
+      "ts": "2026-08-01T01:55:20"
+    },
+    "1093d94c576a695b1fbc6c04d7e2b98001d67340b54ec5ca5c993df4b5698444": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh107.pdf",
+      "name": "iemh107.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is titled 'The Mathematics of Maybe: Introduction to Probability' and contains section 7.1 on probability fundamentals, randomness, and the probability scale - core foundational concepts of probability theory which align directly with Maths Chapter 8: Probability.",
+      "ts": "2026-08-01T01:55:23"
+    },
+    "71fa97928a2aeff91b97f5ac3bc9b8efea2a31b186dffcc9a62029932b355d92": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh108.pdf",
+      "name": "iemh108.pdf",
+      "kind": "supporting",
+      "targets": [
+        "Maths-Ch8-Probability/supporting"
+      ],
+      "route": "llm-haiku \u2014 Document is Chapter 8 on 'Predicting What Comes Next: Exploring Sequences and Progressions' - this covers sequences, arithmetic/geometric patterns, and explicit formulas. While the chapter header shows '8', this appears to be a mathematics chapter on sequences which relates to foundational concepts for probability theory, but the content itself is primarily about sequence patterns and rules rather than probability specifically. However, examining the valid buckets, this content on sequences, patterns, and progressions does not directly align with the specific Maths chapters listed (Quadratic Equations, Circles, Permutations, Trigonometry, Straight Lines, Set Theory, Binomial Theorem, Probability). This appears to be a standalone sequences chapter that may be introductory material.",
+      "ts": "2026-08-01T01:55:28"
+    },
+    "e2e2f01f4ccba8fd5d9dbe7a48af89d882e3518e4e889ca139805b76cf43aca9": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemh1ps.pdf",
+      "name": "iemh1ps.pdf",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-08-01T01:55:31"
+    },
+    "c63f8a424c7a5e5a1ab46c8fd0038188cd4fd7855764b5347985520ef063c475": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Bakliwal-Study-9th-26-27/Collected-Study-Materials/iemk1cc.jpg",
+      "name": "iemk1cc.jpg",
+      "kind": "review",
+      "route": "review (llm-haiku)",
+      "ts": "2026-08-01T01:55:31"
     }
   }
 }

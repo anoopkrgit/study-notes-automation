@@ -11,10 +11,8 @@ To deploy this project on any Windows machine with WSL Ubuntu installed:
 3. Approve the Windows User Account Control (UAC) prompt.
 
 The installer will automatically:
-- Create `C:\StudyNotesAutomation\` (with `logs` and `state` subfolders)
-- Copy `win-environment-setup.ps1` and `wsl-study-notes-processor.sh` to `C:\StudyNotesAutomation\`
 - Build the Python virtual environment (`~/.global_venv`) and install dependencies
-- Register the 3:00 AM Task Scheduler task (`StudyNotesNightly`) automatically
+- Register the 3:00 AM Task Scheduler task (`StudyNotesNightly`) automatically, pointing directly to the scripts in this repository.
 
 ## Setting Up API Keys
 
@@ -73,6 +71,73 @@ sudo -n -l
 
 ## Log Monitoring
 
-All system output is written to a single unified log file accessible from both Windows and Linux:
-- Windows Path: `C:\StudyNotesAutomation\logs\study-notes-pipeline.log`
-- Linux Path: `/mnt/c/StudyNotesAutomation/logs/study-notes-pipeline.log`
+All system output is written to a single unified log file in the repository's `logs/` directory:
+- Windows Path: `<repository-root>\logs\study-notes-pipeline.log`
+- Linux Path: `<wsl-repo-root>/logs/study-notes-pipeline.log`
+
+## Switching the Nightly Pipeline Mode (Legacy vs. Agentic)
+
+Which implementation `StudyNotesNightly` runs is a pure CLI choice, forwarded from the
+Task Scheduler action's arguments, through `win-environment-setup.ps1`'s `-PipelineArgs`
+parameter, through `wsl-study-notes-processor.sh`, down to `main.py`'s own
+`--stage1-impl`/`--stage2-impl {legacy,graph,subprocess}` and
+`--stage1-mode`/`--stage2-mode {off,no-llm,llm-token-saver,llm-full}` flags (see
+`python3 src/main.py --help`). The two `--stageN-mode` flags are fully independent per
+stage — e.g. Stage 1 can run `llm-full` while Stage 2 runs `llm-token-saver` in the same
+invocation. No source file, env var, or config needs editing to change modes — only the
+registered task's action.
+
+Run one of these three blocks in an elevated PowerShell prompt to select a mode. Each
+one fully replaces the task's action; only run the one you want active.
+
+**1. Legacy (default) — Stage 1 with the LLM router, Stage 2 mock/zero-token:**
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-mode llm-full --stage2-mode no-llm`""
+Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
+```
+
+`-PipelineArgs` must be given explicitly here -- `wsl-study-notes-processor.sh` has no implicit
+no-args nightly fallback of its own (an invocation with no args leaves both stages at
+`main.py`'s own `off` default, i.e. does nothing); `win-install-setup.ps1`'s registration
+already includes this same `-PipelineArgs` for exactly that reason.
+
+**2. Agentic, dummy prompts** — new multi-agent graph pipeline, real API calls but
+capped/cheap (`DEV_TOKEN_SAVER_MODE`, via `llm-token-saver`); a smoke test, produces a
+placeholder `.docx`, not usable notes:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-token-saver --stage2-mode llm-token-saver`""
+Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
+```
+
+**3. Agentic, real prompts** — full graph pipeline run, spends real tokens, produces a
+real `.docx`:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<YOUR_PROJECT_DIRECTORY>\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full`""
+Set-ScheduledTask -TaskName 'StudyNotesNightly' -Action $action
+```
+
+Check which mode is currently registered at any time:
+
+```powershell
+(Get-ScheduledTask -TaskName 'StudyNotesNightly').Actions.Arguments
+```
+
+**Caveats:**
+- `win-install-setup.ps1` re-registers this task with `-Force` and mode 1's
+  `-PipelineArgs` (`--stage1-mode llm-full --stage2-mode no-llm`) whenever it runs (e.g.
+  a re-run of `install.bat`), silently reverting to mode 1. If a non-legacy mode needs to
+  survive a reinstall, that script's own `$action` definition needs the matching
+  `-PipelineArgs` for that mode instead.
+- The rate-limit retry task (`StudyNotesRetry`, registered automatically by
+  `win-environment-setup.ps1` on exit code 42) carries the same `-PipelineArgs`
+  forward, so a rate-limited run resumes in the same mode it started in.
+- Per `docs/migration-to-agents.md`'s Verification Plan, don't trust mode 3 unattended
+  until steps 1–6 (unit tests, mock-mode wiring, `DEV_TOKEN_SAVER_MODE` smoke test, a
+  supervised `--live` A/B run, crash/resume test, exit-code contract test) have passed.
+  Mode 2 is the safe way to validate the graph wiring nightly before that.

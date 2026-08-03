@@ -1,14 +1,19 @@
 # win-install-setup.ps1
 # Windows installation helper invoked by 1-click install.bat
 #
-# DESIGN NOTE: this used to copy the whole pipeline into a fixed staging
-# folder (C:\StudyNotesAutomation) and run it from there, so a code edit
-# only took effect after re-running this installer. The Task Scheduler
-# action registered below now points directly at THIS repo's own scripts/
-# folder instead, so src/config/templates edits take effect on the very
-# next nightly run with no reinstall step. Only re-run this installer if
-# the repo itself moves to a different path, or to re-register the task
-# from scratch.
+# DESIGN NOTE: This installer registers the Task Scheduler action to run the
+# pipeline directly from THIS repo's own scripts/ folder. This means
+# src/config/templates edits take effect on the very next nightly run with
+# no reinstall step. Only re-run this installer if the repo itself moves
+# to a different path, or to re-register the task from scratch.
+#
+# -PipelineArgs is passed explicitly below (the long-standing nightly
+# policy: assemble WITH the LLM, generate preview only) because
+# wsl-study-notes-processor.sh no longer has an implicit no-args nightly
+# fallback of its own -- see that script's own comments. Without this,
+# the registered task would run "$@"-empty, main.py's own
+# --stage1-mode/--stage2-mode defaults ("off") would apply, and the
+# nightly task would silently do nothing every night.
 
 $ErrorActionPreference = "Continue"
 
@@ -22,7 +27,7 @@ $RepoRoot = Split-Path -Parent $ScriptSource
 Write-Host "Registering 3:00 AM Windows Task Scheduler task ('StudyNotesNightly')..." -ForegroundColor Yellow
 try {
     $action = New-ScheduledTaskAction -Execute "powershell.exe" `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RepoRoot\scripts\win-environment-setup.ps1`""
+        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RepoRoot\scripts\win-environment-setup.ps1`" -PipelineArgs `"--stage1-mode llm-full --stage2-mode no-llm`""
     $trigger = New-ScheduledTaskTrigger -Daily -At "03:00 AM"
     # -DontStopIfGoingOnBatteries: without this, Windows' default behaviour
     #   is to STOP the task partway through if the laptop switches to

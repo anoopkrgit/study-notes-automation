@@ -1,5 +1,27 @@
 # win-environment-setup.ps1
 # Windows Host Scaffolding: Power lock, Google Drive process/mount check, and Task Scheduler retry handler
+#
+# -PipelineArgs forwards straight through to wsl-study-notes-processor.sh,
+# which forwards it straight through to main.py's own CLI flags (see
+# `python3 src/main.py --help`, e.g. --stage1-impl/--stage2-impl
+# {legacy,graph,subprocess} and --stage1-mode/--stage2-mode
+# {off,no-llm,llm-token-saver,llm-full}). This is the ONLY thing that
+# decides which pipeline implementation runs -- there's no env var or
+# config file to edit. Left empty, main.py's own --stage1-mode/
+# --stage2-mode defaults ("off") apply and BOTH stages are off -- the
+# wrapper script no longer has an implicit nightly fallback of its own
+# (see wsl-study-notes-processor.sh's own comments for why that was
+# removed). The registered 'StudyNotesNightly' Scheduled Task must be
+# given an explicit -PipelineArgs for the nightly policy to actually run
+# anything -- see docs/setup-guide.md's registration examples.
+#
+# Example -- run the agentic pipeline for real (spends tokens):
+#   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full"
+# Example -- same, but cheap smoke test instead of a real run:
+#   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --stage1-mode llm-token-saver --stage2-mode llm-token-saver"
+param(
+    [string]$PipelineArgs = ""
+)
 
 $ErrorActionPreference = "Continue"
 $ScriptSource = $PSScriptRoot
@@ -168,6 +190,7 @@ if ($WslLocalRoot -match '^([A-Za-z]):(.*)') {
     $WslLocalRoot = "/mnt/$($Matches[1].ToLower())$($Matches[2])"
 }
 $wslCommand = "$WslLocalRoot/scripts/wsl-study-notes-processor.sh"
+if ($PipelineArgs) { $wslCommand = "$wslCommand $PipelineArgs" }
 Log-Message "Launching WSL study notes processor: wsl.exe -e bash -lc `"$wslCommand`""
 $jobExit = 1
 try {
@@ -225,8 +248,14 @@ if ($jobExit -eq 42) {
         if ($epochRaw -match '^\d+$') {
             try {
                 $retryAt = [DateTimeOffset]::FromUnixTimeSeconds([int64]$epochRaw).LocalDateTime
-                $retryAction = New-ScheduledTaskAction -Execute "powershell.exe" `
-                    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+                # Carry this run's -PipelineArgs into the retry so a rate-limited
+                # graph/live run resumes the same way instead of silently dropping
+                # to an empty $PipelineArgs -- which, with the wrapper's no-args
+                # fallback removed, would mean both stages default to "off" and
+                # the retry would do nothing at all.
+                $retryArgString = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+                if ($PipelineArgs) { $retryArgString += " -PipelineArgs `"$PipelineArgs`"" }
+                $retryAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $retryArgString
                 $retryTrigger = New-ScheduledTaskTrigger -Once -At $retryAt
                 $retrySettings = New-ScheduledTaskSettingsSet -WakeToRun -StartWhenAvailable -AllowStartIfOnBatteries `
                     -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)

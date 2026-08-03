@@ -76,7 +76,7 @@ way, not a redesign.
   `MAX_WEB_SEARCHES_PER_CHAPTER`, an `ENABLE_WEB_ENRICHMENT` flag (opt-in, off
   until validated).
 - Add the server-side web-search tool to the `tools` list in the live-mode API
-  call in `src/func_generate_notes.py` (`run_generate`, around the
+  call in `src/stage2_api.py` (`run_generate`, around the
   `client.messages.create(...)` call), alongside the existing custom
   `AGENT_TOOLS`.
 - Extend the turn-loop's message-reconstruction in `run_generate` (currently
@@ -141,7 +141,7 @@ Recommendation: whole-corpus scope, subject-filtered.
 ## Architecture
 
 1. **Chunking** -- extract text from each supporting PDF/docx (reusing the
-   existing `pypdf.PdfReader` already imported in `func_assemble_chapters.py`)
+   existing `pypdf.PdfReader` already imported in `stage1_api.py`)
    into page- or paragraph-sized chunks with slight overlap.
 2. **Embedding model** -- a small local/offline model (e.g. a
    `sentence-transformers` model), not an API call. This keeps retrieval at
@@ -186,9 +186,9 @@ Recommendation: whole-corpus scope, subject-filtered.
   `CHUNK_OVERLAP_CHARS`.
 - New dependency in `requirements.txt` for the local embedding model
   (flagged as an open decision -- weighs install size against simplicity).
-- Hook into `func_assemble_chapters.py`: after a supporting file is copied,
+- Hook into `stage1_api.py`: after a supporting file is copied,
   chunk + embed + update the index for that file (hash-gated, once only).
-- Hook into `func_generate_notes.py` (`run_generate`): replace the current
+- Hook into `stage2_api.py` (`run_generate`): replace the current
   "glob and read every file in `supporting/`" step with a call into the new
   retrieval function, keeping the existing file listing only as a fallback/
   manifest for logging.
