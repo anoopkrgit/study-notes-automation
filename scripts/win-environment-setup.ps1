@@ -7,10 +7,13 @@
 # {legacy,graph,subprocess} and --stage1-mode/--stage2-mode
 # {off,no-llm,llm-token-saver,llm-full}). This is the ONLY thing that
 # decides which pipeline implementation runs -- there's no env var or
-# config file to edit. Left empty (the default, and what the registered
-# 'StudyNotesNightly' Scheduled Task passes today since its action has no
-# arguments), the wrapper script falls back to the long-standing nightly
-# policy on its own.
+# config file to edit. Left empty, main.py's own --stage1-mode/
+# --stage2-mode defaults ("off") apply and BOTH stages are off -- the
+# wrapper script no longer has an implicit nightly fallback of its own
+# (see wsl-study-notes-processor.sh's own comments for why that was
+# removed). The registered 'StudyNotesNightly' Scheduled Task must be
+# given an explicit -PipelineArgs for the nightly policy to actually run
+# anything -- see docs/setup-guide.md's registration examples.
 #
 # Example -- run the agentic pipeline for real (spends tokens):
 #   .\win-environment-setup.ps1 -PipelineArgs "--stage1-impl graph --stage2-impl graph --stage1-mode llm-full --stage2-mode llm-full"
@@ -246,8 +249,10 @@ if ($jobExit -eq 42) {
             try {
                 $retryAt = [DateTimeOffset]::FromUnixTimeSeconds([int64]$epochRaw).LocalDateTime
                 # Carry this run's -PipelineArgs into the retry so a rate-limited
-                # graph/live run resumes the same way instead of silently falling
-                # back to the no-args nightly default.
+                # graph/live run resumes the same way instead of silently dropping
+                # to an empty $PipelineArgs -- which, with the wrapper's no-args
+                # fallback removed, would mean both stages default to "off" and
+                # the retry would do nothing at all.
                 $retryArgString = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
                 if ($PipelineArgs) { $retryArgString += " -PipelineArgs `"$PipelineArgs`"" }
                 $retryAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $retryArgString

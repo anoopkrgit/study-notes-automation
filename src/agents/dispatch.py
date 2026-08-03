@@ -92,7 +92,7 @@ def route_file(path: Path, buckets, prior=None, tracker=None, impl: str = None):
     if impl == 'graph':
         logger.info('Stage 1: using GRAPH implementation (multi-agent)')
         from src.agents.stage1_graph import route_one_file
-        return route_one_file(path, buckets, prior)
+        return route_one_file(path, buckets, prior, tracker)
     elif impl == 'subprocess':
         logger.info('Stage 1: using SUBPROCESS implementation (claude CLI)')
         from src.claude_cli_subprocess.stage1_cli import route_file as cli_route_file

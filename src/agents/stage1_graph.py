@@ -187,11 +187,15 @@ def triage_node(state: Stage1State) -> dict:
         model = getattr(config, 'FIGURE_MODEL', 'claude-haiku-4-5')
 
     # `anthropic.Anthropic()` opens a connection to Claude's API (reading
-    # the API key from the environment). TokenTracker just counts how many
-    # tokens (roughly: word-fragments) this call costs, for logging/cost
-    # tracking -- it has no effect on the classification itself.
+    # the API key from the environment). `tracker`, if the caller supplied
+    # one via route_one_file (below), gets this call's usage recorded onto
+    # it for logging/cost tracking -- it has no effect on the
+    # classification itself. If no tracker was supplied, usage for this
+    # call simply isn't recorded anywhere (matching llm_route()'s own
+    # `if tracker is not None` pattern in direct_api/stage1_api.py), rather
+    # than silently creating and discarding a throwaway local one.
     client = anthropic.Anthropic()
-    tracker = TokenTracker()
+    tracker = state.get('tracker')
 
     prompt = f"File: {state['file_path']}\nAvailable buckets: {state['buckets']}\nPrior: {state.get('prior', None)}\n\nPlease categorize this file using the route_file tool."
 
@@ -217,7 +221,8 @@ def triage_node(state: Stage1State) -> dict:
         )
 
         usage = response.usage
-        tracker.record(model, response.usage)
+        if tracker is not None:
+            tracker.record(model, response.usage)
 
         # Claude's reply is also a list of content blocks; because the call
         # above forced a single tool use, there should be exactly one
@@ -280,15 +285,23 @@ def build_stage1_graph():
     graph.add_edge('reconcile', END)
     return graph
 
-def route_one_file(path: Path, buckets: dict | list, prior: dict | None = None) -> tuple[list[tuple], bool, str]:
+def route_one_file(path: Path, buckets: dict | list, prior: dict | None = None,
+                    tracker: TokenTracker = None) -> tuple[list[tuple], bool, str]:
     """The single entry point other code calls to classify one file --
     runs the whole extract -> triage -> reconcile flowchart for `path` and
     returns a plain, simple answer.
 
     Drop-in replacement for llm_route() (the old, single-call version in
-    stage1_api.py): same inputs, same return shape --
+    stage1_api.py): same inputs (including the optional `tracker`,
+    matching llm_route's own signature), same return shape --
     (matches, limited, model_used) -- so callers don't need to know or
     care which implementation actually produced the answer.
+
+    `tracker`, if given, is the caller's shared TokenTracker -- triage_node
+    (the only step here that calls Claude) records this call's usage onto
+    it, the same way dispatch.py's other two Stage 1 implementations
+    (legacy, subprocess) already do. Left as None, no usage is recorded for
+    this call anywhere (see triage_node's docstring).
 
     Each entry in `matches` is the SAME 6-tuple shape llm_route's own
     _parse_matches() produces -- (full_subject, chapter_no, chapter_name,
@@ -320,6 +333,7 @@ def route_one_file(path: Path, buckets: dict | list, prior: dict | None = None) 
         'matches': [],
         'limited': False,
         'model_used': '',
+        'tracker': tracker,
     }
 
     final_state = compiled.invoke(initial_state)

@@ -111,15 +111,21 @@ def run_router(prompt: str, model: str):
     # describing progress (tool calls, thinking, etc.), and the actual final
     # answer is inside whichever one of those lines has a "result" field.
     # This loop scans every printed line looking for that one, rather than
-    # assuming it's always the last line.
+    # assuming it's always the last line -- but only a line that actually
+    # HAS a "result" key updates result_text; other "type"-bearing progress
+    # lines (which don't carry that key at all) are skipped rather than
+    # blanking out an already-found real answer via `.get("result", "")`'s
+    # empty-string default.
     result_text = None
     for line in (p.stdout or "").splitlines():
         line = line.strip()
         if line.startswith("{") and '"type"' in line:
             try:
-                result_text = json.loads(line).get("result", "")
+                obj = json.loads(line)
             except Exception:
-                pass
+                continue
+            if "result" in obj:
+                result_text = obj["result"]
     if result_text is None:
         # None of the printed lines had the expected wrapper shape --
         # fall back to treating the ENTIRE output as the answer text.
