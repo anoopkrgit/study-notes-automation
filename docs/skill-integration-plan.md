@@ -2,7 +2,7 @@
 
 ## Context
 
-`func_generate_notes.py` (Stage 2, the unattended nightly generator that talks
+`stage2_api.py` (Stage 2, the unattended nightly generator that talks
 directly to the Anthropic API — no Claude Code CLI) currently uses
 `templates/study-notes-skill.md`, a ~3.5KB plain-text prompt. It works, but per
 `templates/study-notes-skill-improvement-brief.md`, it forces the model to
@@ -21,7 +21,7 @@ Task tool). It replaces "the LLM writes rendering code" with "the LLM writes
 QA them," with fail-fast gates and quality thresholds measured from an
 approved reference document.
 
-The goal: port this same skill package to run under `func_generate_notes.py`'s
+The goal: port this same skill package to run under `stage2_api.py`'s
 much more restrictive, custom agentic loop — no persistent shell, no
 subagent-spawning tool, a fixed `tool_bash` allowlist, `shell=False` (so shell
 globs and `export` don't work) — without giving that unattended loop any new
@@ -34,7 +34,7 @@ viewing caused in the old flow.
 
 ## Approach
 
-### 1. Unpack the skill package once, cached (`src/func_generate_notes.py`)
+### 1. Unpack the skill package once, cached (`src/stage2_api.py`)
 
 New helper `ensure_skill_unpacked() -> Path`:
 - Hash `config.STUDY_NOTES_SKILL_PACKAGE` (the `.skill` zip) with the existing
@@ -62,7 +62,7 @@ We deliberately do **not** add `npm` to `ALLOWED_BASH_COMMANDS` — that would
 let an unattended overnight agent run arbitrary installs. Provisioning stays
 entirely on our side.
 
-### 3. Swap the system prompt, with a rollback toggle (`src/func_generate_notes.py`, `config/settings.py`)
+### 3. Swap the system prompt, with a rollback toggle (`src/stage2_api.py`, `config/settings.py`)
 
 - Add `config.USE_PACKAGED_SKILL` (env-var gated, default on).
 - Rewrite `load_skill_prompt()`: when on, call `ensure_skill_unpacked()` and
@@ -109,7 +109,7 @@ Two small, safe additions to `tool_bash()`:
   *internally* by `tools/ingest.py`'s own subprocess calls, never directly
   by the model, so they don't need to be in the model-facing allowlist).
 
-### 6. Add the subagent-isolation tool (`src/func_generate_notes.py`)
+### 6. Add the subagent-isolation tool (`src/stage2_api.py`)
 
 New `tool_spawn_subagent(prompt: str, image_paths: list[str], tracker: TokenTracker) -> str`:
 - Builds ONE user turn: the given `prompt` text plus an image content block
@@ -157,7 +157,7 @@ dependency chain.
 ### Files touched
 - `config/settings.py` — new constants: `STUDY_NOTES_SKILL_PACKAGE`,
   `SKILL_CACHE_DIR`, `NODE_DEPS_DIR`, `USE_PACKAGED_SKILL`.
-- `src/func_generate_notes.py` — `ensure_skill_unpacked()`,
+- `src/stage2_api.py` — `ensure_skill_unpacked()`,
   `ensure_node_deps()`, rewritten `load_skill_prompt()` and
   `build_user_prompt()`, new `tool_spawn_subagent()` + `AGENT_TOOLS` entry,
   `execute_tool()` signature change, setup calls + logging in the `--live`

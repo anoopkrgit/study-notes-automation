@@ -4,6 +4,127 @@
 
 set -euo pipefail
 
+# -h/--help is intercepted FIRST, before any of the setup work below
+# (log-file redirect, Google Drive mount check/wait, DUMMY_UNTIL gate) --
+# a real CLI's --help returns instantly and touches nothing, it doesn't
+# wait up to 60s for a drive mount or silently vanish into a log file.
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  cat <<'EOF'
+NAME
+    wsl-study-notes-processor.sh -- WSL entrypoint for the Study Notes
+    Automation Pipeline (file routing + note generation)
+
+SYNOPSIS
+    wsl-study-notes-processor.sh [-h|--help]
+    wsl-study-notes-processor.sh [OPTIONS...]
+    wsl-study-notes-processor.sh                (no args -> both stages off)
+
+DESCRIPTION
+    Windows Task Scheduler's nightly job launches this script inside WSL
+    (see win-environment-setup.ps1). It heals a stale Google Drive mount,
+    checks a DUMMY_UNTIL safety gate, then runs the pipeline's real Python
+    CLI (src/main.py), forwarding every argument this script itself
+    received ("$@") straight through, unmodified. Nothing here is
+    hardcoded: which implementation runs, and how much it spends, is a
+    pure CLI choice that flows all the way from the top -- Task
+    Scheduler's -PipelineArgs, through win-environment-setup.ps1's
+    -PipelineArgs parameter, through this script -- down to src/main.py,
+    with zero file edits required at any layer.
+
+    Invoked with NO arguments at all, "$@" is empty and src/main.py's own
+    --stage1-mode/--stage2-mode defaults ("off") apply -- BOTH stages are
+    off, nothing runs, nothing is spent, main.py just prints its own help
+    and exits 0. There is no implicit nightly fallback anymore: whoever
+    wants a stage to actually run, including the nightly Scheduled Task,
+    must pass the desired --stageN-mode flags explicitly (see
+    docs/setup-guide.md's Task Scheduler -PipelineArgs examples, e.g.
+        --stage1-mode llm-full --stage2-mode no-llm
+    for the long-standing nightly policy: assemble WITH the LLM, generate
+    WITHOUT it).
+
+OPTIONS
+    All options below are src/main.py's own flags, forwarded verbatim --
+    this script defines none of its own. Run `python3 src/main.py --help`
+    for the fully authoritative, always-current list; this is a curated
+    summary organized around the question this script's own docs get
+    asked most: "which of the three implementations does this apply to?"
+
+    --stage1-mode {off,no-llm,llm-token-saver,llm-full}
+    --stage2-mode {off,no-llm,llm-token-saver,llm-full}
+        Whether/how each stage spends. Applies IDENTICALLY to whichever
+        --stageN-impl is selected below -- all three implementations
+        honor the same four states:
+          off               don't run this stage at all      (default)
+          no-llm            deterministic, zero LLM/CLI calls
+          llm-token-saver   real call, near-zero cost, dummy content
+          llm-full          real call, full cost, real output
+
+    --stage1-impl {legacy,graph,subprocess}
+    --stage2-impl {legacy,graph,subprocess}
+        Which code path executes -- the THREE PARALLEL IMPLEMENTATIONS:
+
+          legacy       src/direct_api/            direct Anthropic SDK calls
+                         Stage 1: available.  Stage 2: available.
+          graph        src/agents/                LangGraph multi-agent flowchart
+                         Stage 1: available.  Stage 2: available.
+          subprocess   src/claude_cli_subprocess/ headless `claude` CLI,
+                         billed via Claude subscription, not the metered API key
+                         Stage 1: available.  Stage 2: available.
+
+    --target-dir <path>
+        Stage 2 only. Process exactly this chapter folder instead of
+        auto-picking the next ready one -- bypasses auto-selection AND
+        ignores that chapter's _hold/marker files (a chapter normally
+        skipped as "on hold" or "already done" WILL run if named here
+        explicitly). <path> must be an existing directory; a typo'd or
+        missing path now fails fast with a clear error instead of silently
+        reporting success against zero input files. Has no effect on
+        Stage 1, which always scans its normal input folders regardless.
+
+    --doctor        Environment health check, then exit (ignores everything else)
+    --dry-run       Stage 1 only: show planned actions, touch nothing
+    --verbose       Enable verbose logging
+    --quiet         Suppress INFO logs; show only warnings and errors
+
+EXAMPLES
+    wsl-study-notes-processor.sh
+        No args -> both stages off (main.py's own default). Does nothing.
+
+    wsl-study-notes-processor.sh --stage1-mode llm-full --stage2-mode no-llm
+        The nightly policy: assemble WITH the LLM (legacy), generate preview
+        only. Must now be passed explicitly -- see DESCRIPTION above.
+
+    wsl-study-notes-processor.sh --stage1-mode llm-full --stage2-mode llm-full
+        A full, real, paid run of both stages (legacy implementation, the default).
+
+    wsl-study-notes-processor.sh --stage1-impl graph --stage2-impl graph \
+        --stage1-mode llm-token-saver --stage2-mode llm-token-saver
+        Cheap end-to-end smoke test of the agentic (graph) implementation.
+
+    wsl-study-notes-processor.sh --stage1-impl subprocess --stage1-mode llm-full
+        Real Stage 1 routing via the claude CLI subprocess (Stage 2 not run).
+
+    wsl-study-notes-processor.sh --stage2-mode llm-full --stage2-impl subprocess \
+        --target-dir "/path/to/AI-Chapter-Notes/Maths-Ch3-Permutations-and-Combination"
+        Generate this ONE named chapter for real, regardless of auto-selection
+        order or an existing _hold marker. Stage 1 still runs its normal scan
+        (use --stage1-mode off to skip it entirely).
+
+    wsl-study-notes-processor.sh --stage1-mode llm-full --stage1-impl subprocess \
+        --stage2-mode llm-token-saver --stage2-impl graph
+        Mixed: real Stage 1 via the CLI subprocess, cheap Stage 2 wiring
+        smoke test via the graph implementation -- the two stages' modes
+        and implementations are fully independent of each other.
+
+NOTES
+    Every OTHER invocation (any args not -h/--help) runs the pipeline for
+    real: Google Drive mount check/heal, then src/main.py "$@" verbatim,
+    with all output appended to the unified log file
+    (config.UNIFIED_LOG_FILE), not printed to this terminal.
+EOF
+  exit 0
+fi
+
 # REPO_ROOT is one level ABOVE this script's own directory.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -50,7 +171,7 @@ fi
 # 2. Check DUMMY_UNTIL timestamp gate
 #
 # Zero-token guarantee while dummy mode is active: BOTH stages run without
-# the LLM (--run-assemble-no-llm, --run-generate-no-llm), and assembly is
+# the LLM (--stage1-mode no-llm, --stage2-mode no-llm), and assembly is
 # also --dry-run so it doesn't even write files -- only deterministic
 # filename-based routing and logging happen, so this costs nothing no
 # matter how it's invoked.
@@ -59,33 +180,37 @@ if [ -n "$DUMMY_UNTIL" ]; then
   cutoff_epoch="$(date -d "$DUMMY_UNTIL" +%s 2>/dev/null || echo 0)"
   if [ "$cutoff_epoch" -gt 0 ] && [ "$(date +%s)" -lt "$cutoff_epoch" ]; then
     echo "$(date -Is)  [WSL-PROC]  DUMMY MODE active (until $DUMMY_UNTIL local); running a zero-token dry pass only."
-    "$PYTHON_BIN" "$REPO_ROOT/src/main.py" --run-assemble-no-llm --dry-run --run-generate-no-llm
+    "$PYTHON_BIN" "$REPO_ROOT/src/main.py" --stage1-mode no-llm --dry-run --stage2-mode no-llm
     exit 0
   fi
 fi
 
 # 3. Execute Unified Python Engine
 #
-# Nightly token policy (deliberately explicit here as actual flags, not
-# left to whatever main.py's own argparse defaults happen to be, so this
-# behaviour is visible right where it actually runs and won't silently
-# change if a default is ever edited):
-#   --run-assemble        Stage 1 DOES use the LLM content router, so files
-#                          actually get classified and filed correctly
-#                          overnight.
-#   --run-generate-no-llm Stage 2 runs WITHOUT the LLM: it still does
-#                          everything except talk to the API (picks the
-#                          next chapter, lists its input files, logs all of
-#                          it) so you can see every morning exactly which
-#                          chapter is queued up next -- but spends ZERO
-#                          tokens, since nobody is watching to catch a bad
-#                          multi-turn generation run overnight. Run
-#                          `python3 src/main.py --run-generate` yourself,
-#                          watching the log, when you're ready to actually
-#                          generate a chapter's .docx for real.
-echo "$(date -Is)  [WSL-PROC]  Executing main Python pipeline: --run-assemble --run-generate-no-llm  (assemble: LLM ON, spends tokens | generate: LLM OFF, zero tokens)..."
+# Which pipeline flags actually reach main.py is a pure CLI choice,
+# forwarded verbatim from however THIS script itself was invoked ("$@") --
+# never hardcoded here and never read from an env var, so choosing
+# legacy/graph/subprocess (and cheap-smoke-test-vs-real generation) never
+# requires editing this file. See `python3 src/main.py --help` for the
+# full flag set, in particular --stage1-impl/--stage2-impl
+# {legacy,graph,subprocess} and --stage1-mode/--stage2-mode
+# {off,no-llm,llm-token-saver,llm-full}.
+#
+# No implicit default is injected here: invoked with NO arguments at all,
+# "$@" is empty and main.py's own --stage1-mode/--stage2-mode defaults
+# ("off") apply, so BOTH stages are off and main.py just prints its help
+# and exits 0 -- nothing runs and nothing is spent. This used to silently
+# swap in a hardcoded nightly policy (--stage1-mode llm-full --stage2-mode
+# no-llm) whenever "$#" was exactly 0, but that meant ANY single extra
+# flag (e.g. --verbose) skipped the swap entirely and silently ran neither
+# stage -- a real regression. Whoever wants stages to actually run,
+# including the nightly Scheduled Task, must now pass the desired
+# --stageN-mode flags explicitly (see docs/setup-guide.md's Task Scheduler
+# -PipelineArgs examples) -- "on by explicit choice" instead of "on by
+# implicit fallback."
+echo "$(date -Is)  [WSL-PROC]  Executing main Python pipeline with args: $*"
 set +e
-"$PYTHON_BIN" "$REPO_ROOT/src/main.py" --run-assemble --run-generate-no-llm
+"$PYTHON_BIN" "$REPO_ROOT/src/main.py" "$@"
 rc=$?
 set -e
 

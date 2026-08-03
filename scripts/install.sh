@@ -1,11 +1,25 @@
 #!/usr/bin/env bash
 # install.sh
 # Automated Linux dependency installer & venv bootstrap script
+#
+# WHAT THIS SCRIPT DOES, IN PLAIN TERMS: the study-notes pipeline (the
+# Python program in src/) needs several pieces of other software installed
+# on this Linux machine before it can run -- specific Python libraries, a
+# few command-line tools, and one Node.js package. This script checks for
+# each of those and installs whatever is missing, so a human doesn't have
+# to do it by hand step by step. It's meant to be run ONCE per machine (or
+# again after cloning to a new machine), not every time the pipeline runs.
 
 set -euo pipefail
 
 echo "=== Linux Installer (install.sh) Starting ==="
 
+# A "virtual environment" (venv) is an isolated folder holding its own
+# private copy of Python and Python libraries, separate from the ones
+# already on this system. Installing this project's libraries into a venv
+# (instead of directly onto the system) means they can never conflict with
+# -- or get broken by -- some other, unrelated Python program on the same
+# machine.
 VENV_PATH="$HOME/.global_venv"
 
 # 1. Create Python venv if missing
@@ -18,7 +32,10 @@ PYTHON_BIN="$VENV_PATH/bin/python3"
 PIP_BIN="$VENV_PATH/bin/pip"
 
 # 2. Install / Upgrade required Python packages
-# (kept in sync with requirements.txt -- see that file for what each one is for)
+# "pip" is Python's own package installer -- it downloads and installs
+# Python libraries by name. requirements.txt lists every library this
+# project needs (kept in sync with this script -- see that file for what
+# each one is for).
 echo "Installing required Python dependencies..."
 "$PIP_BIN" install --quiet --upgrade pip
 "$PIP_BIN" install --quiet -r "$(dirname "${BASH_SOURCE[0]}")/../requirements.txt"
@@ -26,6 +43,12 @@ echo "Installing required Python dependencies..."
 echo "Python packages installed cleanly."
 
 # 3. Environment Health Check
+# Beyond Python libraries, the pipeline also shells out to a few
+# stand-alone command-line programs (installed system-wide, not via pip).
+# This section just checks whether each one is already present and, if
+# not, tells the human what to type to install it -- it does not install
+# them automatically, since that requires a system-administrator password
+# (see `sudo` below) for software this script didn't choose to auto-run.
 echo "Checking Linux system tools..."
 # pdftoppm (from the 'poppler-utils' package) is required alongside soffice
 # for the diagram-conversion and page-by-page visual-QA tools. Each tool's
@@ -67,6 +90,13 @@ else
 fi
 
 # 5. Set up the passwordless Google Drive remount helper.
+#
+# Background for anyone unfamiliar with Linux permissions: `sudo` means
+# "run this one command as the all-powerful administrator account" and
+# normally demands a password every time, as a safety check. A "sudoers
+# rule" is a line in a system configuration file that pre-approves ONE
+# specific person to run ONE specific command as administrator without
+# being asked for a password at all -- everything else still requires it.
 #
 # WHY THIS IS NEEDED: the unattended nightly job sometimes finds /mnt/g in
 # a "stale" state -- Google Drive for Desktop remounted G: on Windows, but

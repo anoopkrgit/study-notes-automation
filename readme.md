@@ -32,8 +32,8 @@ study-notes-automation/
 │   └── remount-gdrive              # Sudo-passwordless Drive remount helper
 ├── src/
 │   ├── main.py                      # CLI entrypoint (--run-assemble, --run-generate, --doctor)
-│   ├── func_assemble_chapters.py    # Stage 1 folder assembler module
-│   ├── func_generate_notes.py       # Stage 2 agentic generator module
+│   ├── stage1_api.py    # Stage 1 folder assembler module
+│   ├── stage2_api.py       # Stage 2 agentic generator module
 │   ├── func_classify_and_rename.py  # Chapter taxonomy classifier
 │   └── func_tools_and_utils.py      # Shared tools, hashing & logging utilities
 ├── templates/
@@ -103,30 +103,44 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ### CLI Usage
 
+Each stage is controlled by one `--stageN-mode {off,no-llm,llm-token-saver,llm-full}` flag
+(default `off`) — see `python3 src/main.py --help` for the full picture, including
+`--stage1-impl`/`--stage2-impl {legacy,graph,subprocess}` for choosing which implementation
+runs each stage.
+
 ```bash
 # Health check — verify all tools are available
 python3 src/main.py --doctor
 
 # Stage 1 only (assemble + LLM routing)
-python3 src/main.py --run-assemble
+python3 src/main.py --stage1-mode llm-full
 
 # Stage 1 only (deterministic filename routing, no tokens spent)
-python3 src/main.py --run-assemble-no-llm
+python3 src/main.py --stage1-mode no-llm
 
 # Stage 2 only (generate notes — spends tokens)
-python3 src/main.py --run-generate
+python3 src/main.py --stage2-mode llm-full
 
 # Stage 2 preview (zero tokens, shows what it would generate)
-python3 src/main.py --run-generate-no-llm
+python3 src/main.py --stage2-mode no-llm
 
 # Full pipeline (both stages, both with LLM)
-python3 src/main.py --run-both
+python3 src/main.py --stage1-mode llm-full --stage2-mode llm-full
 
 # Nightly policy: assemble with LLM, generate preview only
-python3 src/main.py --run-assemble --run-generate-no-llm
+python3 src/main.py --stage1-mode llm-full --stage2-mode no-llm
+
+# Cheap smoke test of both stages' wiring, near-zero cost
+python3 src/main.py --stage1-mode llm-token-saver --stage2-mode llm-token-saver
 
 # Any combination also accepts --verbose / --quiet / --dry-run
-python3 src/main.py --run-assemble-no-llm --dry-run
+python3 src/main.py --stage1-mode no-llm --dry-run
+
+# Stage 2 only, for one specific named chapter (bypasses auto-selection
+# and any _hold marker). Must be an existing chapter directory --
+# a bad path now fails fast instead of silently "succeeding" against
+# zero input files.
+python3 src/main.py --stage2-mode llm-full --target-dir "AI-Chapter-Notes/Maths-Ch3-Permutations-and-Combination"
 ```
 
 ---
