@@ -1,7 +1,8 @@
 # Plan: Bounded Web Enrichment for Stage 2 (Note Generator)
 
-Status: **Decided, not yet implemented.** Recorded so it can be picked up in a
-later session without re-deriving the reasoning.
+Status: **Implemented for the `claude_cli_subprocess` generator
+(2026-08-04).** `direct_api`/`agents` are unaffected by this plan -- see
+"Which implementation this plan targets" below.
 
 ## Goal
 
@@ -12,15 +13,50 @@ quality (better real-world examples, clearer analogies, extra practice
 problems) -- without letting it "go wild" (uncontrolled searching, low-quality
 sources, or scope creep beyond what the transcripts actually teach).
 
+## Which implementation this plan targets
+
+The repo grew a third Stage 2 implementation (`src/claude_cli_subprocess/`)
+after this plan was first drafted, alongside the original `src/direct_api/`
+(plain Anthropic SDK, `client.messages.create`) and `src/agents/`. The
+original draft of this plan assumed the SDK path -- it named
+`src/stage2_api.py` and a request-level `tools` list, neither of which exist
+in the CLI-subprocess module. **This revision targets
+`src/claude_cli_subprocess/stage2_cli.py` specifically**, since that's the
+version actually implemented (2026-08-04). The core guardrail *mechanism* is
+different enough between the two that the sections below should not be
+read as applying to `direct_api`/`agents` without re-deriving them there.
+
 ## Core approach
 
-Use Claude's native **server-side web search tool**, not a custom
-scraper/fetcher. Two of its config fields double as hard guardrails enforced
-by the API itself (not just prompt instructions the model could drift away
-from):
+`claude_cli_subprocess` delegates the whole generation pipeline to a real
+Claude Code session running the packaged `study-notes` skill (see
+`stage2_cli.py`'s own module docstring) -- there is no request-level `tools`
+list this code controls directly, only the CLI's own built-in `WebSearch` /
+`WebFetch` tools, granted or withheld via `--allowedTools`. That changes both
+guardrails from single config fields on an API request into two *separate*
+CLI-native mechanisms, discovered by reading Claude Code's own permission
+docs (`docs/en/tools-reference.md`, `docs/en/permissions.md`) rather than
+assumed by analogy with the SDK's server-side web search tool:
 
-- `allowed_domains` -- the model literally cannot fetch outside this list.
-- `max_uses` -- a hard cap on number of searches per request.
+- **Domain allow-list**: `WebSearch` permission rules in Claude Code take
+  no specifier -- it's `allow`/`deny` on the whole tool, not per-domain.
+  (The tool's own input schema *has* an `allowed_domains` field, but that's
+  something the model chooses to pass per search call, not something this
+  code can force from outside.) The actual hard, CLI-enforced boundary is on
+  `WebFetch`, whose permission rules DO support domain scoping --
+  `WebFetch(domain:example.com)`, matched by hostname, `*` wildcards
+  supported. So the enforced guardrail here is: grant bare `WebSearch`
+  (prompted to pass `allowed_domains` matching our list, as a courtesy, not
+  as the boundary) plus `WebFetch(domain:...)` for *only* the 5 approved
+  domains below and no bare `WebFetch` -- so even if a search surfaces a
+  result outside the list, there is no tool that can actually fetch it.
+- **Search budget**: no per-request field exists for the CLI. Claude Code
+  enforces a session-wide cap via the `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION`
+  environment variable (default 200 as of Claude Code 2.1.212+; accepts any
+  positive whole number). Since `run_claude_cli()` makes exactly one `claude`
+  session per chapter (resumed via `-r` across retries, not restarted), a
+  session-level cap maps directly onto "per chapter" the way the original
+  plan intended -- set low, it becomes our per-chapter search budget.
 
 ## Decided configuration
 
@@ -38,54 +74,108 @@ Deliberately excluded: Vedantu, Toppr, Embibe, Wikipedia -- kept the list tight
 rather than broad. Can be added later if the audit trail (see below) shows
 real gaps.
 
-**Search cap:** 3 per chapter generation (`max_uses`). Enough for one lookup
-per major concept the transcript covers, without letting a single run spiral
-in latency/cost.
+**Search cap:** 3 per chapter generation, via
+`CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` (see "Core approach" above).
+Enough for one lookup per major concept the transcript covers, without
+letting a single run spiral in latency/cost.
 
 This starting config is expected to be adjusted after reviewing the audit
 trail from the first few real (`--live`) runs -- it's a one-line change either
 way, not a redesign.
 
+*Open verification item:* whether this env var can be set *below* its
+200-call default (docs confirm it "can be raised", not explicitly that it
+can be lowered) was not empirically confirmed before implementation --
+consistent with this module's existing practice of shipping defensively
+around unverified CLI details (see `run_claude_cli()`'s docstring on the
+`--output-format json` envelope shape, or the `-r/--resume` flag spelling).
+Confirm against a real `--live` run's actual search count once the first
+pilot chapters are generated.
+
 ## Guardrails, layered
 
-1. **Domain allow-list** -- hard boundary on source quality (see above).
-2. **Search budget** -- hard boundary on cost/scope creep (see above).
-3. **Scope boundary unchanged** -- the existing prompt rule that supporting
-   material "must NOT expand scope beyond what the transcripts cover" extends
-   verbatim to web content: search is for *enriching* a topic the transcript
-   already teaches, never for introducing a subtopic the transcript never
-   covered (even if commonly taught alongside that chapter elsewhere).
-4. **Mandatory attribution** -- every web-derived fact/example must be
-   traceable. Extend the existing `_sources.txt` manifest convention with a
-   new `_web-sources.txt`, written after generation, listing every query
-   issued and every URL actually used.
+1. **Domain allow-list** -- hard boundary on source quality, enforced via
+   `WebFetch(domain:...)` scoping (see "Core approach" above).
+2. **Search budget** -- hard boundary on cost/scope creep, enforced via
+   `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` (see "Core approach" above).
+3. **Scope boundary explicit for web content too** -- `direct_api`'s
+   `build_user_prompt()` already has a "must NOT expand scope beyond what the
+   transcripts cover" rule for `supporting/` material, but the
+   `study-notes` skill (`SKILL.md`, the CLI implementation's actual
+   instruction set) did not have an equivalent line -- its one mention of
+   the web ("Research the web for depth, where depth means more explanation
+   ... and a wider variety of problem types") was already present before this
+   plan, granted no tool to act on it, and didn't say anything about scope.
+   Added a line to `SKILL.md`'s "Sources, in priority order" paragraph
+   making the same rule explicit for web content, and naming the 5 allowed
+   domains + the search cap there so the model has the actual numbers, not
+   just "some limit exists".
+4. **Mandatory attribution, built from ground truth, not self-report** --
+   consistent with this module's existing "TRUTH-CHECK, NOT SELF-REPORTED
+   SUCCESS" philosophy (`stage2_cli.py` module docstring; `expected_docx.exists()`
+   gating `config.MARKER` rather than trusting the CLI's own JSON envelope),
+   `_web-sources.txt` is NOT written by prompting the model to self-report
+   what it searched/fetched. `stage2_cli.py` already reads Claude Code's own
+   local session transcript JSONL for the heartbeat log
+   (`_heartbeat_summary()`); `write_web_sources_manifest()` reuses that same
+   file, this time scanning *every* line for `WebSearch`/`WebFetch`
+   `tool_use` blocks, so the manifest reflects tool calls Claude Code
+   actually made, not what the model claims it made.
 5. **Graceful degradation** -- if search fails or hits its cap mid-run,
    generation must continue using only transcripts/supporting material.
    Never block the whole chapter on a failed search, consistent with how the
-   pipeline already treats other API hiccups as non-fatal.
-6. **Low-risk rollout path** -- the nightly unattended run currently does
-   `--run-generate-no-llm` (zero-token dry preview only); real generation only
-   happens when manually run with `--run-generate --live` while watching the
-   log. Web search should only be active in that manual path initially, so
-   several chapters can be spot-checked for citation quality before ever
-   trusting it in the unattended nightly job.
+   pipeline already treats other API hiccups as non-fatal. No extra code
+   needed for this: `WebSearch`/`WebFetch` are just two more tools among the
+   ones already granted via `--allowedTools`; a failed call is the model's
+   problem to route around within the same session, not something
+   `run_claude_cli()` has visibility into or needs to special-case.
+6. **Low-risk rollout path** -- `ENABLE_WEB_ENRICHMENT` (new config flag,
+   default OFF) gates whether `WebSearch`/`WebFetch(domain:...)` are ever
+   added to `--allowedTools` at all. Since `run_stage2_chapter()` only calls
+   `run_claude_cli()` when `live_mode=True` (the nightly unattended run uses
+   `--run-generate-no-llm`, i.e. mock mode, which returns before building any
+   tool list), turning this flag on inherently only affects the manual
+   `--run-generate --live` path -- no separate manual/nightly branch needed
+   in code for this specifically.
 
-## What implementation would actually touch (when picked up)
+## What was implemented (`claude_cli_subprocess`, 2026-08-04)
 
-- New config constants in `config/settings.py`: `WEB_SEARCH_ALLOWED_DOMAINS`,
-  `MAX_WEB_SEARCHES_PER_CHAPTER`, an `ENABLE_WEB_ENRICHMENT` flag (opt-in, off
-  until validated).
-- Add the server-side web-search tool to the `tools` list in the live-mode API
-  call in `src/stage2_api.py` (`run_generate`, around the
-  `client.messages.create(...)` call), alongside the existing custom
-  `AGENT_TOOLS`.
-- Extend the turn-loop's message-reconstruction in `run_generate` (currently
-  only preserves `text`/`tool_use` content blocks when rebuilding `messages`)
-  to also preserve the server tool's search/result blocks -- otherwise that
-  context silently drops on the next turn.
-- Extend `build_user_prompt()` with the enrichment-vs-scope rule above.
-- Write `_web-sources.txt` next to `_sources.txt` after a successful
-  generation.
+- `config/settings.py`: `ENABLE_WEB_ENRICHMENT` (bool, env `ENABLE_WEB_ENRICHMENT`,
+  default off), `WEB_SEARCH_ALLOWED_DOMAINS` (the 5-domain list above),
+  `MAX_WEB_SEARCHES_PER_CHAPTER` (int, env `MAX_WEB_SEARCHES_PER_CHAPTER`,
+  default 3).
+- `src/claude_cli_subprocess/common.py`: `build_claude_env()` takes an
+  optional `extra_env` dict, merged in after the existing
+  `ANTHROPIC_API_KEY` pop -- used to set
+  `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` only when web enrichment is on
+  (kept general/reusable rather than a one-off web-search-only parameter).
+- `src/claude_cli_subprocess/stage2_cli.py`:
+  - `run_claude_cli()`: when `config.ENABLE_WEB_ENRICHMENT` and not
+    `dev_mode`, appends `WebSearch` plus one `WebFetch(domain:...)` entry per
+    allowed domain to the `--allowedTools` list, and passes
+    `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` via `build_claude_env()`'s new
+    `extra_env`. Left untouched (and covered by the existing
+    `test_real_run_gets_full_tool_list_not_empty` test, which asserts
+    `--allowedTools` equals `config.CLAUDE_ALLOWED_TOOLS` exactly) when the
+    flag is off, since the default is off.
+  - New `write_web_sources_manifest(target_dir, workspace)`: scans the
+    session's local JSONL transcript (same file `_heartbeat_summary()`
+    reads) for `WebSearch`/`WebFetch` tool_use blocks, extracts
+    query/url/allowed_domains, and writes `_web-sources.txt` into
+    `target_dir` (next to `_sources.txt`). Called from `run_stage2_chapter()`
+    right after the existing `expected_docx.exists()` success check, only
+    when `config.ENABLE_WEB_ENRICHMENT` is on. Best-effort/silent-on-failure,
+    same as `_heartbeat_summary()` -- an unreadable transcript degrades to
+    "no manifest written", never a failed chapter.
+- `templates/study-notes.skill` (the packaged skill zip -- `SKILL.md` inside
+  it is the actual source of truth read by the CLI at runtime; there is no
+  separate tracked source directory, so this was unzip -> edit -> re-zip in
+  place): extended the "Sources, in priority order" paragraph with the
+  allowed-domain list, the search cap, the explicit anti-scope-creep rule for
+  web content, and an instruction to note in the delivery summary when web
+  search was used (for a human skimming the log; the actual audit trail is
+  `_web-sources.txt`, built from ground truth per guardrail 4, not from this
+  prose).
 
 ## Open items for next session
 
@@ -93,14 +183,34 @@ way, not a redesign.
   `_web-sources.txt` audit trail from a handful of chapters.
 - Decide whether `ENABLE_WEB_ENRICHMENT` should default on or stay opt-in
   once validated.
+- Confirm `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` actually lowers the cap
+  below its default in practice (see the "Open verification item" under
+  "Decided configuration" above) -- not yet confirmed against a real `--live`
+  run.
+- No `direct_api`/`agents` equivalent exists yet. If either of those
+  implementations is still in active use, this plan would need a second,
+  separate pass for the SDK-level `tools`/`allowed_domains`/`max_uses`
+  mechanism the original draft described -- that mechanism is real for those
+  two, just not for `claude_cli_subprocess`.
 
 ---
 
 # Plan: Local Retrieval-Augmented Generation (RAG) Over Supporting Materials
 
-Status: **Decided, not yet implemented.** This is the actual RAG component of
-the project -- unlike the web-enrichment plan above, this is real embedding
-based semantic retrieval, and it requires no internet access at all.
+Status: **Decided, not yet implemented; untouched by the 2026-08-04 session
+that implemented the web-enrichment plan above.** This is the actual RAG
+component of the project -- unlike the web-enrichment plan above, this is
+real embedding based semantic retrieval, and it requires no internet access
+at all. File paths below have been updated to match the current repo layout
+(`src/direct_api/`, added after this plan's first draft) but the design
+itself has not been re-evaluated against `claude_cli_subprocess` or `agents`
+-- both postdate this plan too, and unlike the web-enrichment plan's tool-list
+mechanism, it's not yet clear whether this plan's touch points (a Python hook
+after Stage 1 files a supporting file; a Python hook in Stage 2's context
+assembly) even have an equivalent to hook into on the CLI-subprocess path,
+where Stage 2 is a single opaque `claude -p` call rather than Python-driven
+turn loop. Re-scope this plan against whichever implementation is live before
+picking it up.
 
 ## Why this exists
 
@@ -141,7 +251,7 @@ Recommendation: whole-corpus scope, subject-filtered.
 ## Architecture
 
 1. **Chunking** -- extract text from each supporting PDF/docx (reusing the
-   existing `pypdf.PdfReader` already imported in `stage1_api.py`)
+   existing `pypdf.PdfReader` already imported in `src/direct_api/stage1_api.py`)
    into page- or paragraph-sized chunks with slight overlap.
 2. **Embedding model** -- a small local/offline model (e.g. a
    `sentence-transformers` model), not an API call. This keeps retrieval at
@@ -186,12 +296,13 @@ Recommendation: whole-corpus scope, subject-filtered.
   `CHUNK_OVERLAP_CHARS`.
 - New dependency in `requirements.txt` for the local embedding model
   (flagged as an open decision -- weighs install size against simplicity).
-- Hook into `stage1_api.py`: after a supporting file is copied,
-  chunk + embed + update the index for that file (hash-gated, once only).
-- Hook into `stage2_api.py` (`run_generate`): replace the current
-  "glob and read every file in `supporting/`" step with a call into the new
-  retrieval function, keeping the existing file listing only as a fallback/
-  manifest for logging.
+- Hook into `src/direct_api/stage1_api.py`: after a supporting file is
+  copied, chunk + embed + update the index for that file (hash-gated, once
+  only).
+- Hook into `src/direct_api/stage2_api.py` (`run_generate`): replace the
+  current "glob and read every file in `supporting/`" step with a call into
+  the new retrieval function, keeping the existing file listing only as a
+  fallback/manifest for logging.
 - Update `build_user_prompt()` to present retrieved chunks (with attribution)
   instead of full supporting-file dumps.
 - Tests: chunking correctness, deterministic top-k ranking (mocked embedding

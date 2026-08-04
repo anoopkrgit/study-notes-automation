@@ -17,7 +17,8 @@ from src.claude_cli_subprocess.common import build_claude_env
 from src.func_tools_and_utils import EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 
 from src.claude_cli_subprocess.stage2_cli import (
-    run_stage2_chapter, run_claude_cli, classify_cli_result, sync_skill_package
+    run_stage2_chapter, run_claude_cli, classify_cli_result, sync_skill_package,
+    write_web_sources_manifest
 )
 
 
@@ -309,3 +310,150 @@ def test_sync_skill_package_only_reextracts_when_source_changed(monkeypatch, tmp
     # Third sync -> should re-extract
     sync_skill_package()
     assert (install_dir / "test.txt").read_text() == "v2"
+
+
+# ---------------------------------------------------------------------------
+# Bounded web enrichment (docs/web-enrichment-plan.md)
+# ---------------------------------------------------------------------------
+
+def _write_fake_transcript(home_dir: Path, workspace: Path, content_blocks):
+    """Build a fake Claude Code session transcript JSONL at the same path
+    write_web_sources_manifest() (and _heartbeat_summary()) derive from
+    `workspace` -- one line, one message, whose content is exactly the
+    given list of blocks (tool_use / text)."""
+    project_dir = home_dir / ".claude" / "projects" / str(workspace).replace("/", "-")
+    project_dir.mkdir(parents=True, exist_ok=True)
+    transcript = project_dir / "session.jsonl"
+    transcript.write_text(json.dumps({"message": {"content": content_blocks}}) + "\n", encoding="utf-8")
+    return transcript
+
+
+def test_write_web_sources_manifest_built_from_transcript_not_self_report(monkeypatch, tmp_path):
+    """_web-sources.txt must reflect actual WebSearch/WebFetch tool_use
+    blocks recorded in Claude Code's own session transcript -- the same
+    'truth-check, not self-report' pattern stage2_cli.py already uses for
+    the .docx success marker, not something the model merely claims it did
+    in its text reply."""
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [
+        {"type": "tool_use", "name": "WebSearch",
+         "input": {"query": "refraction real world examples",
+                   "allowed_domains": ["hyperphysics.phy-astr.gsu.edu"]}},
+        {"type": "tool_use", "name": "WebFetch",
+         "input": {"url": "https://hyperphysics.phy-astr.gsu.edu/hbase/geoopt/refr.html"}},
+        {"type": "text", "text": "some unrelated assistant text, not a tool call"},
+    ])
+
+    write_web_sources_manifest(target, workspace)
+
+    manifest = target / config.WEB_SOURCES
+    assert manifest.exists()
+    content = manifest.read_text()
+    assert "refraction real world examples" in content
+    assert "hyperphysics.phy-astr.gsu.edu/hbase/geoopt/refr.html" in content
+
+def test_write_web_sources_manifest_skips_when_no_web_tool_use(monkeypatch, tmp_path):
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [{"type": "text", "text": "no web tools used this run"}])
+
+    write_web_sources_manifest(target, workspace)
+    assert not (target / config.WEB_SOURCES).exists()
+
+def test_write_web_sources_manifest_silent_when_transcript_missing(monkeypatch, tmp_path):
+    """Best-effort: a missing transcript must never raise or block the
+    pipeline, same as _heartbeat_summary()'s own fallback."""
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    write_web_sources_manifest(target, tmp_path / "workspace" / "no-such-chapter")
+    assert not (target / config.WEB_SOURCES).exists()
+
+def test_web_enrichment_off_by_default_no_tools_no_env_var(mock_dirs):
+    """Default config.ENABLE_WEB_ENRICHMENT is False -- a real run must NOT
+    grant WebSearch/WebFetch and must NOT set
+    CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION, so an operator who never
+    opted in never has Claude Code's web tools available."""
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+        (target / "chapter1.docx").touch()
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            run_stage2_chapter(target_dir=target, live_mode=True)
+
+        args, kwargs = mock_popen.call_args
+        allowed_tools = args[0][args[0].index("--allowedTools") + 1]
+        assert "WebSearch" not in allowed_tools
+        assert "CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION" not in kwargs["env"]
+
+def test_web_enrichment_enabled_adds_scoped_tools_and_search_cap(monkeypatch, mock_dirs):
+    """When opted in, --allowedTools must grant bare WebSearch plus ONLY
+    domain-scoped WebFetch(domain:...) rules for the approved domains --
+    never a bare WebFetch, which would defeat the domain guardrail (see
+    docs/web-enrichment-plan.md's "Core approach") -- and the session
+    search cap must be passed through the subprocess environment."""
+    monkeypatch.setattr(config, "ENABLE_WEB_ENRICHMENT", True)
+    monkeypatch.setattr(config, "WEB_SEARCH_ALLOWED_DOMAINS", ["example.edu", "example.org"])
+    monkeypatch.setattr(config, "MAX_WEB_SEARCHES_PER_CHAPTER", 3)
+
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+        (target / "chapter1.docx").touch()
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest'):
+                run_stage2_chapter(target_dir=target, live_mode=True)
+
+        args, kwargs = mock_popen.call_args
+        allowed_tools = args[0][args[0].index("--allowedTools") + 1]
+        tokens = allowed_tools.split(",")
+        assert "WebSearch" in tokens
+        webfetch_tokens = [t for t in tokens if t.startswith("WebFetch")]
+        assert webfetch_tokens, "expected domain-scoped WebFetch rules to be present"
+        assert all(t.startswith("WebFetch(domain:") for t in webfetch_tokens), \
+            "no bare WebFetch grant allowed -- it would defeat the domain guardrail"
+        assert "WebFetch(domain:example.edu)" in tokens
+        assert "WebFetch(domain:example.org)" in tokens
+        assert kwargs["env"]["CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION"] == "3"
+
+def test_web_enrichment_writes_manifest_only_when_enabled(monkeypatch, mock_dirs):
+    """write_web_sources_manifest() must only run when the operator opted
+    in -- otherwise a chapter generated without web tools would get a
+    spurious/empty audit file."""
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "chapter1.docx").touch()
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest') as mock_manifest:
+                assert run_stage2_chapter(target_dir=target, live_mode=True) == EXIT_OK
+                mock_manifest.assert_not_called()
+
+            monkeypatch.setattr(config, "ENABLE_WEB_ENRICHMENT", True)
+            (target / config.MARKER).unlink(missing_ok=True)
+            with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest') as mock_manifest:
+                assert run_stage2_chapter(target_dir=target, live_mode=True) == EXIT_OK
+                mock_manifest.assert_called_once()
