@@ -102,6 +102,72 @@ def _heartbeat_summary(workspace: Path) -> str:
         return "working"
 
 
+def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
+    """Best-effort audit trail for bounded web enrichment
+    (docs/web-enrichment-plan.md, guardrail 4): scan Claude Code's own local
+    session transcript JSONL -- the SAME file _heartbeat_summary() above
+    reads, just the whole thing instead of only the tail -- for every
+    WebSearch/WebFetch tool_use block actually issued, and write
+    target_dir/config.WEB_SOURCES listing them.
+
+    Deliberately built from the transcript, not from asking the model to
+    self-report what it searched: consistent with this module's
+    "TRUTH-CHECK, NOT SELF-REPORTED SUCCESS" rule (see this file's module
+    docstring) -- a model can claim it only used approved sources and be
+    wrong, but it can't fake tool_use blocks Claude Code never actually
+    recorded.
+
+    Silent-on-failure, same as _heartbeat_summary(): an unreadable or
+    missing transcript means no manifest gets written, never a failed
+    chapter -- this is an audit convenience, not something generation
+    should ever be gated on.
+    """
+    try:
+        project_dir = Path.home() / ".claude" / "projects" / str(workspace).replace("/", "-")
+        candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if not candidates:
+            return
+
+        searches, fetches = [], []
+        with open(candidates[0], "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                content = entry.get("message", {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    if not isinstance(block, dict) or block.get("type") != "tool_use":
+                        continue
+                    name = block.get("name")
+                    tool_input = block.get("input") or {}
+                    if name == "WebSearch":
+                        query = tool_input.get("query", "")
+                        domains = tool_input.get("allowed_domains") or tool_input.get("blocked_domains")
+                        searches.append(f"{query} (domains: {domains})" if domains else query)
+                    elif name == "WebFetch":
+                        fetches.append(tool_input.get("url", ""))
+
+        if not searches and not fetches:
+            return  # nothing web-related happened this run; no manifest needed
+
+        lines = ["Web enrichment audit trail (docs/web-enrichment-plan.md).",
+                 "Built from the actual claude CLI session transcript, not self-reported.",
+                 "", f"Searches issued ({len(searches)}):"]
+        lines += [f"  - {q}" for q in searches] or ["  (none)"]
+        lines += ["", f"Pages fetched ({len(fetches)}):"]
+        lines += [f"  - {u}" for u in fetches] or ["  (none)"]
+        (target_dir / config.WEB_SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info(f"Wrote {config.WEB_SOURCES} ({len(searches)} search(es), {len(fetches)} fetch(es)).")
+    except Exception as e:
+        logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
+
+
 def sync_skill_package() -> Path:
     """Ensure the current templates/*.skill package is unzipped and
     up to date at config.CLAUDE_SKILL_INSTALL_DIR, re-extracting only when
@@ -239,6 +305,25 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
     # before hitting error_max_budget_usd. With no tools granted, the model
     # can only reply in text -- nothing to spend money doing.
     allowed_tools = "" if dev_mode else config.CLAUDE_ALLOWED_TOOLS
+    extra_env = None
+    if not dev_mode and getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+        # Bounded web enrichment (docs/web-enrichment-plan.md). Two SEPARATE
+        # guardrail mechanisms, not one config field -- Claude Code's
+        # WebSearch permission rule has no domain specifier (allow/deny the
+        # whole tool only), so the actual hard domain boundary is on
+        # WebFetch, which DOES support WebFetch(domain:...) scoping. Granting
+        # WebSearch but ONLY these domain-scoped WebFetch rules (never a bare
+        # WebFetch) means even a search result outside the list can't
+        # actually be fetched. The search-count cap has no per-request CLI
+        # flag either; CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION is the
+        # closest equivalent, and since one `claude` session == one chapter
+        # here (resumed via -r across retries, never restarted), a
+        # session-level cap doubles as our per-chapter budget.
+        allowed_tools = allowed_tools + ",WebSearch," + ",".join(
+            f"WebFetch(domain:{domain})" for domain in config.WEB_SEARCH_ALLOWED_DOMAINS
+        )
+        extra_env = {"CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION":
+                     str(config.MAX_WEB_SEARCHES_PER_CHAPTER)}
     cmd = [config.CLAUDE_BIN, "-p", prompt,
            "--output-format", "json",
            "--permission-mode", config.CLAUDE_PERMISSION_MODE,
@@ -278,7 +363,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
     # the child -- a plain proc.poll()-and-sleep loop would risk exactly that.
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                 text=True, cwd=str(workspace), env=build_claude_env())
+                                 text=True, cwd=str(workspace), env=build_claude_env(extra_env))
     except Exception as e:
         logger.error(f"claude CLI call failed to launch: {e}")
         return {"ok": False, "result": None, "session_id": None, "total_cost_usd": None,
@@ -516,6 +601,8 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
 
         if result["ok"] and expected_docx.exists():
             logger.info("Target docx confirmed. Placing success marker.")
+            if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+                write_web_sources_manifest(target_dir, _chapter_workspace(target_dir))
             (target_dir / config.MARKER).write_text("Done", encoding="utf-8")
             progress_file.unlink(missing_ok=True)
             return EXIT_OK

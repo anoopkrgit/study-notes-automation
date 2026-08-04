@@ -48,6 +48,7 @@ HOLD = "_hold"
 MARKER = "_notes_done"
 FAILMARK = "_notes_FAILED.txt"
 SOURCES = "_sources.txt"
+WEB_SOURCES = "_web-sources.txt"
 NEWMAT = "_new-material.txt"
 SUP_DIR = "supporting"
 TRANSCRIPTS_DIR = "transcripts"
@@ -143,3 +144,21 @@ CLAUDE_RETRY_EPOCH_DEFAULT_SECONDS = int(os.environ.get("CLAUDE_RETRY_EPOCH_DEFA
 CLAUDE_SKILL_SOURCE_GLOB = os.environ.get("CLAUDE_SKILL_SOURCE_GLOB", "templates/*.skill")
 CLAUDE_SKILL_INSTALL_DIR = LOCAL_RUNTIME_ROOT / ".claude" / "skills" / "study-notes"
 CLAUDE_WORKSPACE_ROOT = LOCAL_RUNTIME_ROOT / "generation-workspace"  # per-chapter scratch subfolders
+
+# ---------------------------------------------------------------------------
+# Bounded web enrichment for Stage 2 (docs/web-enrichment-plan.md). Opt-in
+# and off by default until validated against real --live runs. Only wired
+# into src/claude_cli_subprocess/stage2_cli.py -- see the plan doc for why
+# the guardrail mechanism (WebFetch domain-scoped permission rules +
+# CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION) is CLI-specific and doesn't
+# carry over to src/direct_api/ or src/agents/ as-is.
+# ---------------------------------------------------------------------------
+ENABLE_WEB_ENRICHMENT = os.environ.get("ENABLE_WEB_ENRICHMENT", "0") == "1"
+WEB_SEARCH_ALLOWED_DOMAINS = [
+    "ncert.nic.in",
+    "hyperphysics.phy-astr.gsu.edu",
+    "chem.libretexts.org",
+    "khanacademy.org",
+    "byjus.com",
+]
+MAX_WEB_SEARCHES_PER_CHAPTER = int(os.environ.get("MAX_WEB_SEARCHES_PER_CHAPTER", "3"))
