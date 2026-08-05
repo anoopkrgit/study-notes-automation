@@ -405,9 +405,7 @@ def apply_retro_fixes(candidates: list, source_workspace: Path) -> dict:
         # top of a change that was itself never validated.
         if skill_copy.exists():
             shutil.rmtree(skill_copy)
-        skill_copy.mkdir(parents=True)
-        with zipfile.ZipFile(source_skill[0], "r") as zf:
-            zf.extractall(skill_copy)
+        sync_skill_package(skill_copy)
 
         candidate_lines = "\n".join(
             f"{i}. {c.get('issue')} (observed {c.get('observed')}x): {c.get('change')}"
