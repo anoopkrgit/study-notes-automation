@@ -74,6 +74,26 @@ def run_doctor():
         has_docx_pkg = False
     logger.info(f"  - Node package 'docx' (global): {'[AVAILABLE]' if has_docx_pkg else '[NOT FOUND] (install with: npm install -g docx)'}")
 
+    # 6. Stale/leftover skill directories under ~/.claude/skills/ (one level
+    # deep -- Claude Code's personal-skill scan doesn't go deeper than that).
+    # Confirmed live: a stray "study-notes.bak-20260801" dir sitting there
+    # caused `/study-notes` to silently fuzzy-resolve to it instead of this
+    # project's own skill, once project-local discovery failed (see
+    # docs/cli-subprocess-plan.md). Warn, don't fail -- this is a hygiene
+    # check, not something that should block an otherwise-healthy doctor run.
+    global_skills_dir = Path.home() / ".claude" / "skills"
+    if global_skills_dir.is_dir():
+        stale_markers = (".bak", "-old", "-deprecated")
+        stale = [p.name for p in global_skills_dir.iterdir()
+                 if p.is_dir() and any(m in p.name for m in stale_markers)]
+        if stale:
+            logger.warning(f"  - Stale-looking skill dir(s) under {global_skills_dir}: {stale} "
+                            f"-- move to {global_skills_dir / 'archives'} or delete; a name like "
+                            f"this can silently shadow the real 'study-notes' skill via fuzzy "
+                            f"slash-command resolution.")
+        else:
+            logger.info(f"  - Global skills dir ({global_skills_dir}): no stale-looking entries.")
+
     logger.info("Doctor diagnostics check finished.")
     return EXIT_OK
 

@@ -10,7 +10,7 @@ import os
 import re
 
 
-def build_claude_env() -> dict:
+def build_claude_env(extra_env: dict = None) -> dict:
     """Build the set of environment variables to hand to the `claude`
     command-line program when this code launches it as a subprocess (a
     separate, independent running copy of that program).
@@ -27,9 +27,16 @@ def build_claude_env() -> dict:
     variables (so the subprocess still has everything else it needs, like
     PATH) and then deletes ANTHROPIC_API_KEY from that copy, guaranteeing
     the subprocess can never see it.
+
+    extra_env, when given, is merged in last (so callers can set/override
+    CLI-behavior env vars such as CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION
+    -- see stage2_cli.py's web-enrichment wiring -- without every caller
+    needing its own copy-and-pop dance).
     """
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)
+    if extra_env:
+        env.update(extra_env)
     return env
 
 

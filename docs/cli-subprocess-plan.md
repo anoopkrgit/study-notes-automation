@@ -229,12 +229,31 @@ after the call returns, never by trusting self-reported success.
    global `~/.claude/skills/study-notes/`, to avoid clobbering whatever's installed there for
    other purposes.
 
-**Open mechanic to verify in the pilot, not assumed:** whether Claude Code's project/local
-skill discovery reliably finds `.claude/skills/study-notes/` by walking up from a `cwd` set to
-a subdirectory of `LOCAL_RUNTIME_ROOT`. If not, fallback is syncing into
-`~/.claude/skills/study-notes/` directly (global, simpler, but shares state with whatever's
-installed there today). Resolve this first in the pilot's manual smoke test, before writing
-wrapper code around it.
+**Resolved (2026-08-05, first live pilot run):** project/local skill discovery does NOT
+reliably find `.claude/skills/study-notes/` by walking up from `cwd` set to a subdirectory of
+`LOCAL_RUNTIME_ROOT` — confirmed on the first live `--stage2-mode llm-full` run, where
+`/study-notes` silently fuzzy-resolved to an unrelated, stale, pre-schema global skill
+(`~/.claude/skills/study-notes.bak-20260801/`, the "simpler, older, globally-installed skill"
+mentioned above — it had since been renamed with a `.bak-` suffix, which is presumably why the
+exact-name match failed entirely rather than colliding) instead of this project's own,
+correctly-synced skill. Root-cause hypothesis: this repo's `.claude/` is gitignored, and
+Claude Code's directory-walk discovery appears to skip gitignored paths.
+
+**Fix shipped:** `sync_skill_package()` (`stage2_cli.py`) now takes an optional `install_dir`
+parameter and `run_stage2_chapter()` calls it TWICE per run — once for the project-local dir
+(unchanged, kept as primary), once for `config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR`
+(`~/.claude/skills/study-notes/`, always discoverable regardless of `cwd`, since personal-scope
+skills are scanned unconditionally). Both stay in lockstep automatically; no manual re-install
+is ever needed again. A new `verify_resolved_skill()` also reads the session transcript's own
+`"Base directory for this skill: <path>"` line after every run and treats a resolution outside
+{project-local, global} as FATAL — this is what would have caught the original bug immediately
+instead of requiring a human to notice the output looked wrong.
+
+**Lesson for the future:** never leave a `.bak`/`-old`/`-deprecated`-suffixed directory sitting
+directly inside `~/.claude/skills/` (one level deep, where Claude Code scans for skills) — move
+it to `~/.claude/skills/archives/` or delete it. A stray one there can silently shadow the real
+skill via fuzzy slash-command resolution, exactly as happened here. `python3 src/main.py
+--doctor` now warns about this.
 
 ### `src/claude_cli_subprocess/stage2_cli.py` — functions to build
 
