@@ -81,9 +81,30 @@ validate → figures → verify → build → QA) is NOT Python code — it's de
 packaged Claude Code skill at `templates/study-notes.skill`. That file is a **tracked
 zip**, not a directory; there is no separate unpacked source tree in git. To edit its
 `SKILL.md` (or anything else inside), unzip it, edit, and re-zip in place — see the
-web-enrichment commit history for the exact unzip/edit/rezip approach. `.claude/skills/`
-and `.skill-runtime/` in this repo are gitignored *local extraction caches* of that zip
-(`sync_skill_package()` in `stage2_cli.py`), not sources of truth.
+web-enrichment / skill-resolution-fix commit history for the exact unzip/edit/rezip
+approach (`_repackage_skill_dir()` in `stage2_cli.py` for the programmatic version).
+`.claude/skills/` and `.skill-runtime/` in this repo are gitignored *local extraction
+caches* of that zip (`sync_skill_package()` in `stage2_cli.py`), not sources of truth.
+
+`sync_skill_package()` extracts to **two** locations every run, not one:
+`config.CLAUDE_SKILL_INSTALL_DIR` (project-local) and `config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR`
+(`~/.claude/skills/study-notes`, user-level). This is deliberate, not redundant: project-local
+skill discovery from `run_claude_cli()`'s nested `generation-workspace/<chapter>` cwd was
+confirmed unreliable on a real live run (root-caused to this repo's `.claude/` being
+gitignored) — `/study-notes` silently fuzzy-resolved to an unrelated stale global skill
+instead of failing loudly. `verify_resolved_skill()` is the truth-check for this: it reads
+the session transcript's own `"Base directory for this skill: ..."` line after every run and
+treats a resolution outside {project-local, global} as FATAL. See `docs/cli-subprocess-plan.md`'s
+"Resolved" section for the full incident.
+
+After a successful run, `capture_retro_findings()` runs the skill's own `tools/retro.py --json`
+directly (not relying on the model having invoked it) and writes `_retro-findings.txt` into the
+chapter folder if there are candidate skill improvements. `apply_retro_fixes()` (opt-in via
+`config.ENABLE_AUTO_SKILL_IMPROVEMENT`, off by default) can act on those automatically: a
+separate, bounded `claude -p` session edits a scratch copy of the skill, and `tools/regress.py`
+is independently re-run by `stage2_cli.py` itself as the accept/reject gate — a failing
+`regress.py` discards the attempt entirely; `templates/study-notes.skill` is only ever
+overwritten after an independently-confirmed pass.
 
 `DEV_TOKEN_SAVER_MODE` (set via `--stageN-mode llm-token-saver`) is a cost-safe smoke-test
 toggle honored by all three implementations: cheap model, dummy prompt/content, capped
@@ -102,7 +123,9 @@ real production run.
 - Per-chapter marker files: `_hold` (not ready yet), `_notes_done` (success), `_notes_FAILED.txt`
   (non-retryable failure, needs a human), `_sources.txt`/`_web-sources.txt` (attribution
   manifests — the latter is built from Claude Code's own session transcript, not the
-  model's self-report; see `write_web_sources_manifest()` in `stage2_cli.py`).
+  model's self-report; see `write_web_sources_manifest()` in `stage2_cli.py`), and
+  `_retro-findings.txt` (candidate skill improvements from that chapter's `tools/retro.py`
+  run — see `capture_retro_findings()`/`apply_retro_fixes()` in `stage2_cli.py`).
 - Source files are read-only: Stage 1 only ever *copies* into chapter folders, never
   moves/deletes from the incoming source directories.
 
@@ -112,9 +135,12 @@ real production run.
 almost everything is `os.environ.get(...)`-backed with a sane default, so behavior changes
 via env vars, not code edits. Notable groups: base paths/models (top of file), the
 `STAGE1_IMPL`/`STAGE2_IMPL`/`DEV_TOKEN_SAVER_MODE` rollout switches, the `CLAUDE_*` block
-(subprocess-implementation CLI flags/timeouts), and the `ENABLE_WEB_ENRICHMENT`/
+(subprocess-implementation CLI flags/timeouts, including `CLAUDE_SKILL_INSTALL_DIR` +
+`CLAUDE_SKILL_GLOBAL_INSTALL_DIR`, both kept in sync every run), the `ENABLE_WEB_ENRICHMENT`/
 `WEB_SEARCH_ALLOWED_DOMAINS`/`MAX_WEB_SEARCHES_PER_CHAPTER` block (bounded web search for
-the `subprocess` Stage 2 generator only — see `docs/web-enrichment-plan.md`).
+the `subprocess` Stage 2 generator only — see `docs/web-enrichment-plan.md`), and
+`ENABLE_AUTO_SKILL_IMPROVEMENT`/`AUTO_SKILL_IMPROVEMENT_WORKSPACE` (opt-in autonomous
+application of `retro.py` candidates, `regress.py`-gated — off by default).
 
 ## Docs worth reading before larger changes
 

@@ -1,5 +1,18 @@
 # Implementation plan: `src/claude_cli_subprocess/stage2_cli.py`
 
+**Status: historical.** This is the original pre-implementation design doc, written before
+`stage2_cli.py` existed. The module has since been built and has evolved well beyond what's
+described here (bounded web enrichment, the skill-resolution truth-check, dual project-local +
+global skill sync, automatic `retro.py` findings capture, opt-in autonomous skill
+self-improvement — none of which this plan anticipated). Treat this as a record of the
+original reasoning, not a current spec. For current behavior see `CLAUDE.md`,
+`docs/cli-subprocess-plan.md` (kept up to date), and `docs/web-enrichment-plan.md`. The
+skill-discovery mechanic this doc calls "explicitly unverified" below (§5, and the
+Verification Plan's Step 1) was resolved on 2026-08-05 — see `docs/cli-subprocess-plan.md`'s
+"Resolved" section for what was actually found and fixed; project-local discovery does NOT
+reliably work from this module's nested workspace cwd, so both a project-local and a global
+copy are now kept in sync on every run.
+
 ## Context
 
 The pipeline has three parallel, co-equal implementations of Stage 2 (note generation),

@@ -10,7 +10,7 @@ import subprocess
 import time
 import zipfile
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 import settings as config
 from src.claude_cli_subprocess.common import build_claude_env
@@ -18,7 +18,8 @@ from src.func_tools_and_utils import EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 
 from src.claude_cli_subprocess.stage2_cli import (
     run_stage2_chapter, run_claude_cli, classify_cli_result, sync_skill_package,
-    write_web_sources_manifest
+    write_web_sources_manifest, verify_resolved_skill, capture_retro_findings,
+    apply_retro_fixes, _repackage_skill_dir
 )
 
 
@@ -72,7 +73,9 @@ def test_run_stage2_chapter_dev_token_saver_uses_dummy_prompt_and_flags(monkeypa
         (target / "chapter1.docx").touch()
 
         with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
-            run_stage2_chapter(target_dir=target, live_mode=True)
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": False, "candidates": [], "log_records": 0}):
+                run_stage2_chapter(target_dir=target, live_mode=True)
 
         mock_popen.assert_called_once()
         args, kwargs = mock_popen.call_args
@@ -145,7 +148,9 @@ def test_real_run_gets_full_tool_list_not_empty(mock_dirs):
         (target / "chapter1.docx").touch()
 
         with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
-            run_stage2_chapter(target_dir=target, live_mode=True)
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": False, "candidates": [], "log_records": 0}):
+                run_stage2_chapter(target_dir=target, live_mode=True)
 
         args, kwargs = mock_popen.call_args
         cmd = args[0]
@@ -311,6 +316,48 @@ def test_sync_skill_package_only_reextracts_when_source_changed(monkeypatch, tmp
     sync_skill_package()
     assert (install_dir / "test.txt").read_text() == "v2"
 
+def test_sync_skill_package_explicit_install_dir_is_independent_of_project_local(monkeypatch, tmp_path):
+    """sync_skill_package(install_dir=...) must sync to exactly that
+    directory and leave config.CLAUDE_SKILL_INSTALL_DIR (the project-local
+    default) completely untouched -- run_stage2_chapter() relies on the two
+    calls being independent, one per target, not accidentally aliased."""
+    skill_dir = tmp_path / "skill_source"
+    skill_dir.mkdir()
+    skill_zip = skill_dir / "test.skill"
+    with zipfile.ZipFile(skill_zip, "w") as zf:
+        zf.writestr("test.txt", "v1")
+
+    project_local = tmp_path / "project_local_install"
+    global_install = tmp_path / "global_install"
+    monkeypatch.setattr(config, "CLAUDE_SKILL_SOURCE_GLOB", "skill_source/*.skill")
+    monkeypatch.setattr(config, "LOCAL_RUNTIME_ROOT", tmp_path)
+    monkeypatch.setattr(config, "CLAUDE_SKILL_INSTALL_DIR", project_local)
+
+    sync_skill_package(global_install)
+
+    assert (global_install / "test.txt").read_text() == "v1"
+    assert not project_local.exists()  # the default target was never touched
+
+def test_run_stage2_chapter_syncs_skill_to_both_project_local_and_global(mock_dirs):
+    """run_stage2_chapter() must sync the skill to BOTH locations every
+    live run -- project-local (unchanged default call) and global
+    (config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR) -- so neither can silently go
+    stale relative to templates/study-notes.skill. This is the fix for the
+    live bug where /study-notes fuzzy-resolved to a stale global skill
+    because only the project-local copy was being kept fresh."""
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+        (target / "chapter1.docx").touch()
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package') as mock_sync:
+            run_stage2_chapter(target_dir=target, live_mode=True)
+
+        assert mock_sync.call_count == 2
+        mock_sync.assert_has_calls([call(), call(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)])
+
 
 # ---------------------------------------------------------------------------
 # Bounded web enrichment (docs/web-enrichment-plan.md)
@@ -396,7 +443,9 @@ def test_web_enrichment_off_by_default_no_tools_no_env_var(mock_dirs):
         (target / "chapter1.docx").touch()
 
         with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
-            run_stage2_chapter(target_dir=target, live_mode=True)
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": False, "candidates": [], "log_records": 0}):
+                run_stage2_chapter(target_dir=target, live_mode=True)
 
         args, kwargs = mock_popen.call_args
         allowed_tools = args[0][args[0].index("--allowedTools") + 1]
@@ -422,7 +471,9 @@ def test_web_enrichment_enabled_adds_scoped_tools_and_search_cap(monkeypatch, mo
 
         with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
             with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest'):
-                run_stage2_chapter(target_dir=target, live_mode=True)
+                with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                           return_value={"ok": False, "candidates": [], "log_records": 0}):
+                    run_stage2_chapter(target_dir=target, live_mode=True)
 
         args, kwargs = mock_popen.call_args
         allowed_tools = args[0][args[0].index("--allowedTools") + 1]
@@ -457,3 +508,323 @@ def test_web_enrichment_writes_manifest_only_when_enabled(monkeypatch, mock_dirs
             with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest') as mock_manifest:
                 assert run_stage2_chapter(target_dir=target, live_mode=True) == EXIT_OK
                 mock_manifest.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Skill-resolution truth-check (verify_resolved_skill) -- added after a live
+# run confirmed /study-notes can silently fuzzy-resolve to the WRONG skill;
+# see docs/cli-subprocess-plan.md's "Resolved" section for the full story.
+# ---------------------------------------------------------------------------
+
+def test_verify_resolved_skill_ok_when_resolved_dir_is_expected(monkeypatch, tmp_path):
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [
+        {"type": "text", "text": "Base directory for this skill: /expected/study-notes\n\n# Study Notes Generator\n..."},
+    ])
+
+    result = verify_resolved_skill(workspace, {"/expected/study-notes"})
+    assert result == {"checked": True, "ok": True, "resolved": "/expected/study-notes"}
+
+def test_verify_resolved_skill_flags_unexpected_resolution(monkeypatch, tmp_path):
+    """The exact failure mode this function exists to catch: a DIFFERENT
+    skill (e.g. a stale ~/.claude/skills/study-notes.bak-* directory)
+    resolved instead of one of the expected, freshly-synced locations."""
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [
+        {"type": "text", "text": "Base directory for this skill: /home/anoop/.claude/skills/study-notes.bak-20260801\n\n# Study Notes Generator\n..."},
+    ])
+
+    result = verify_resolved_skill(workspace, {"/expected/study-notes", "/other/expected/study-notes"})
+    assert result["checked"] is True
+    assert result["ok"] is False
+    assert result["resolved"] == "/home/anoop/.claude/skills/study-notes.bak-20260801"
+
+def test_verify_resolved_skill_unchecked_when_no_resolution_line_present(monkeypatch, tmp_path):
+    """No skill-resolution line found (e.g. dev-mode's dummy prompt never
+    invokes /study-notes at all) -- must degrade to checked=False, ok=True,
+    never treated as a failure just because nothing was found to check."""
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [{"type": "text", "text": "just a normal reply, no skill invoked"}])
+
+    result = verify_resolved_skill(workspace, {"/expected/study-notes"})
+    assert result == {"checked": False, "ok": True, "resolved": None}
+
+def test_verify_resolved_skill_unchecked_when_transcript_missing(monkeypatch, tmp_path):
+    home_dir = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+    result = verify_resolved_skill(tmp_path / "workspace" / "no-such-chapter", {"/expected/study-notes"})
+    assert result == {"checked": False, "ok": True, "resolved": None}
+
+def test_run_stage2_chapter_fatal_when_resolved_skill_is_unexpected(monkeypatch, mock_dirs):
+    """Regression test for the exact bug diagnosed live: even though the
+    claude CLI reports success AND the expected .docx exists (a wrong
+    skill can still produce a file at the right path, which is exactly
+    what happened), a mismatched resolved-skill dir must still be treated
+    as FATAL -- this check runs independently of, and before, the
+    expected_docx.exists() success gate."""
+    home_dir = mock_dirs / "home"
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "chapter1.docx").touch()  # wrong skill still produced the file
+
+    workspace = config.CLAUDE_WORKSPACE_ROOT / "chapter1"
+    _write_fake_transcript(home_dir, workspace, [
+        {"type": "text", "text": "Base directory for this skill: /home/anoop/.claude/skills/study-notes.bak-20260801\n\n# Study Notes Generator\n..."},
+    ])
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            result = run_stage2_chapter(target_dir=target, live_mode=True)
+
+    assert result == EXIT_FATAL
+    assert (target / config.FAILMARK).exists()
+    assert not (target / config.MARKER).exists()
+
+
+# ---------------------------------------------------------------------------
+# retro.py findings capture -- added after a live run's real skill-improvement
+# candidates (backed by actual repeated-failure counts) never reached a human,
+# because the model correctly declined to pause for approval mid-unattended-run
+# and just summarized them away in one dismissive sentence instead.
+# ---------------------------------------------------------------------------
+
+def _mock_retro_run(returncode=0, payload=None):
+    result = MagicMock()
+    result.returncode = returncode
+    result.stdout = json.dumps(payload) if payload is not None else ""
+    return result
+
+def test_capture_retro_findings_writes_file_when_candidates_found(tmp_path):
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    payload = {"log_records": 42, "candidates": [
+        {"issue": "label-on-geometry collisions", "observed": 35,
+         "change": "give labels prefer= hints or a larger canvas"},
+    ]}
+    with patch('subprocess.run', return_value=_mock_retro_run(0, payload)):
+        result = capture_retro_findings(target, tmp_path / "workspace")
+
+    assert result == {"ok": True, "candidates": payload["candidates"], "log_records": 42}
+    manifest = target / config.RETRO_FINDINGS
+    assert manifest.exists()
+    content = manifest.read_text()
+    assert "label-on-geometry collisions" in content
+    assert "observed 35x" in content
+    assert "NOT applied" in content  # must be unmistakable this isn't auto-accepted
+
+def test_capture_retro_findings_no_file_when_no_candidates(tmp_path):
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    payload = {"log_records": 10, "candidates": []}
+    with patch('subprocess.run', return_value=_mock_retro_run(0, payload)):
+        result = capture_retro_findings(target, tmp_path / "workspace")
+
+    assert result == {"ok": True, "candidates": [], "log_records": 10}
+    assert not (target / config.RETRO_FINDINGS).exists()
+
+def test_capture_retro_findings_handles_missing_run_log(tmp_path):
+    """retro.py exits non-zero (e.g. 'no run log at ...') when the session
+    never touched the real pipeline (DEV_TOKEN_SAVER_MODE, or a run that
+    failed before generating anything) -- must degrade cleanly, not raise."""
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    with patch('subprocess.run', return_value=_mock_retro_run(2, None)):
+        result = capture_retro_findings(target, tmp_path / "workspace")
+
+    assert result == {"ok": False, "candidates": [], "log_records": 0}
+    assert not (target / config.RETRO_FINDINGS).exists()
+
+def test_capture_retro_findings_handles_exception(tmp_path):
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    with patch('subprocess.run', side_effect=OSError("boom")):
+        result = capture_retro_findings(target, tmp_path / "workspace")
+
+    assert result == {"ok": False, "candidates": [], "log_records": 0}
+    assert not (target / config.RETRO_FINDINGS).exists()
+
+def test_run_stage2_chapter_logs_action_needed_when_retro_candidates_found(mock_dirs, caplog):
+    """The whole point of capturing this: a human watching the log for an
+    otherwise-successful run must see a clear, unmissable signal that
+    something needs review -- not just a quiet file drop."""
+    import logging
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "chapter1.docx").touch()
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": True, "log_records": 5,
+                                     "candidates": [{"issue": "x", "observed": 2, "change": "y"}]}):
+                with caplog.at_level(logging.WARNING):
+                    result = run_stage2_chapter(target_dir=target, live_mode=True)
+
+    assert result == EXIT_OK
+    assert (target / config.MARKER).exists()  # retro findings never block success
+    assert any("ACTION NEEDED" in r.message for r in caplog.records)
+
+def test_run_stage2_chapter_silent_when_no_retro_candidates(mock_dirs, caplog):
+    import logging
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "chapter1.docx").touch()
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": True, "log_records": 5, "candidates": []}):
+                with caplog.at_level(logging.WARNING):
+                    result = run_stage2_chapter(target_dir=target, live_mode=True)
+
+    assert result == EXIT_OK
+    assert not any("ACTION NEEDED" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Autonomous skill improvement (apply_retro_fixes) -- opt-in, regress.py-gated
+# self-application of retro.py candidates. The accept/reject gate is
+# INDEPENDENTLY re-run by this code, never trusted from the session's own
+# report -- these tests exist mainly to prove that boundary actually holds.
+# ---------------------------------------------------------------------------
+
+def _make_fake_skill_zip(path: Path):
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("SKILL.md", "# fake skill\n")
+        zf.writestr("tools/regress.py", "# placeholder, never actually executed in tests\n")
+    return path
+
+def _fake_subprocess_run(claude_returncode=0, regress_returncode=0, regress_stdout="PASS"):
+    def _run(cmd, **kwargs):
+        result = MagicMock()
+        if any("regress.py" in str(c) for c in cmd):
+            result.returncode = regress_returncode
+            result.stdout = regress_stdout
+        else:
+            result.returncode = claude_returncode
+            result.stdout = '{"result": "done"}'
+        result.stderr = ""
+        return result
+    return _run
+
+@pytest.fixture
+def skill_improvement_dirs(monkeypatch, tmp_path):
+    skill_dir = tmp_path / "templates"
+    skill_dir.mkdir()
+    skill_file = _make_fake_skill_zip(skill_dir / "study-notes.skill")
+
+    monkeypatch.setattr(config, "LOCAL_RUNTIME_ROOT", tmp_path)
+    monkeypatch.setattr(config, "CLAUDE_SKILL_SOURCE_GLOB", "templates/*.skill")
+    monkeypatch.setattr(config, "AUTO_SKILL_IMPROVEMENT_WORKSPACE", tmp_path / "improve_ws")
+    monkeypatch.setattr(config, "CLAUDE_SKILL_INSTALL_DIR", tmp_path / "install_local")
+    monkeypatch.setattr(config, "CLAUDE_SKILL_GLOBAL_INSTALL_DIR", tmp_path / "install_global")
+
+    source_workspace = tmp_path / "chapter_workspace"
+    (source_workspace / ".study-notes").mkdir(parents=True)
+    return {"skill_file": skill_file, "source_workspace": source_workspace, "tmp_path": tmp_path}
+
+def test_repackage_skill_dir_round_trips(tmp_path):
+    original = _make_fake_skill_zip(tmp_path / "orig.skill")
+    extracted = tmp_path / "extracted"
+    with zipfile.ZipFile(original) as zf:
+        zf.extractall(extracted)
+    (extracted / "LESSONS.md").write_text("# new file\n", encoding="utf-8")
+
+    out = tmp_path / "repackaged.skill"
+    _repackage_skill_dir(extracted, out)
+
+    with zipfile.ZipFile(out) as zf:
+        names = set(zf.namelist())
+        assert "SKILL.md" in names
+        assert "tools/regress.py" in names
+        assert "LESSONS.md" in names
+        assert zf.read("LESSONS.md") == b"# new file\n"
+
+def test_apply_retro_fixes_applies_and_resyncs_when_regress_passes(skill_improvement_dirs):
+    d = skill_improvement_dirs
+    candidates = [{"issue": "label collisions", "observed": 5, "change": "bigger canvas"}]
+
+    with patch("subprocess.run", side_effect=_fake_subprocess_run(regress_returncode=0)):
+        result = apply_retro_fixes(candidates, d["source_workspace"])
+
+    assert result["applied"] is True
+    assert (d["tmp_path"] / "install_local" / "SKILL.md").exists()
+    assert (d["tmp_path"] / "install_global" / "SKILL.md").exists()
+
+def test_apply_retro_fixes_discards_change_when_regress_fails(skill_improvement_dirs):
+    d = skill_improvement_dirs
+    original_bytes = d["skill_file"].read_bytes()
+    candidates = [{"issue": "label collisions", "observed": 5, "change": "bigger canvas"}]
+
+    with patch("subprocess.run", side_effect=_fake_subprocess_run(
+            regress_returncode=1, regress_stdout="REGRESSION FAILED: words")):
+        result = apply_retro_fixes(candidates, d["source_workspace"])
+
+    assert result["applied"] is False
+    assert "regress.py failed" in result["reason"]
+    # the source .skill must be byte-for-byte untouched -- a failed
+    # self-improvement attempt must never partially land
+    assert d["skill_file"].read_bytes() == original_bytes
+    assert not (d["tmp_path"] / "install_local").exists()
+    assert not (d["tmp_path"] / "install_global").exists()
+
+def test_apply_retro_fixes_no_source_skill_found(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "LOCAL_RUNTIME_ROOT", tmp_path)
+    monkeypatch.setattr(config, "CLAUDE_SKILL_SOURCE_GLOB", "templates/*.skill")
+    monkeypatch.setattr(config, "AUTO_SKILL_IMPROVEMENT_WORKSPACE", tmp_path / "improve_ws")
+
+    result = apply_retro_fixes([{"issue": "x", "observed": 1, "change": "y"}], tmp_path / "chapter")
+    assert result["applied"] is False
+    assert "no templates" in result["reason"]
+
+def test_apply_retro_fixes_handles_claude_cli_timeout(skill_improvement_dirs):
+    d = skill_improvement_dirs
+    original_bytes = d["skill_file"].read_bytes()
+
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=1)):
+        result = apply_retro_fixes([{"issue": "x", "observed": 1, "change": "y"}], d["source_workspace"])
+
+    assert result["applied"] is False
+    assert "timed out" in result["reason"]
+    assert d["skill_file"].read_bytes() == original_bytes
+
+def test_run_stage2_chapter_attempts_auto_apply_when_enabled(monkeypatch, mock_dirs):
+    monkeypatch.setattr(config, "ENABLE_AUTO_SKILL_IMPROVEMENT", True)
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "chapter1.docx").touch()
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": True, "log_records": 5,
+                                     "candidates": [{"issue": "x", "observed": 2, "change": "y"}]}):
+                with patch('src.claude_cli_subprocess.stage2_cli.apply_retro_fixes',
+                           return_value={"applied": True, "reason": "regress.py passed"}) as mock_apply:
+                    result = run_stage2_chapter(target_dir=target, live_mode=True)
+
+    assert result == EXIT_OK
+    mock_apply.assert_called_once()
+    assert (target / config.MARKER).exists()  # a failed/successful fix attempt never blocks the chapter

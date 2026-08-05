@@ -34,6 +34,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import time
 import zipfile
 from pathlib import Path
@@ -44,6 +45,20 @@ from src.func_tools_and_utils import (
     logger, write_retry_epoch, EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 )
 from .common import build_claude_env, is_usage_limit
+
+
+def _latest_session_transcript(workspace: Path) -> Path:
+    """Locate the newest local Claude Code session transcript JSONL for a
+    given subprocess cwd (workspace). Claude Code names each project's
+    transcript folder after that project's working directory, with every
+    "/" swapped for "-", under ~/.claude/projects/. Shared by every
+    transcript reader in this module (_heartbeat_summary(),
+    write_web_sources_manifest(), verify_resolved_skill()) so this lookup
+    lives in exactly one place. Returns None if no transcript exists yet.
+    """
+    project_dir = Path.home() / ".claude" / "projects" / str(workspace).replace("/", "-")
+    candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates[0] if candidates else None
 
 
 def _heartbeat_summary(workspace: Path) -> str:
@@ -66,15 +81,12 @@ def _heartbeat_summary(workspace: Path) -> str:
     generation call.
     """
     try:
-        # Claude Code names each project's transcript folder after that
-        # project's working directory, with every "/" swapped for "-".
-        project_dir = Path.home() / ".claude" / "projects" / str(workspace).replace("/", "-")
-        candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not candidates:
+        transcript = _latest_session_transcript(workspace)
+        if transcript is None:
             return "starting up"
         # Only read the last ~8KB rather than the whole (potentially
         # multi-megabyte) file -- we only need the MOST RECENT entry.
-        with open(candidates[0], "rb") as f:
+        with open(transcript, "rb") as f:
             f.seek(0, 2)
             size = f.tell()
             f.seek(max(0, size - 8000))
@@ -123,13 +135,12 @@ def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
     should ever be gated on.
     """
     try:
-        project_dir = Path.home() / ".claude" / "projects" / str(workspace).replace("/", "-")
-        candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not candidates:
+        transcript = _latest_session_transcript(workspace)
+        if transcript is None:
             return
 
         searches, fetches = [], []
-        with open(candidates[0], "r", encoding="utf-8", errors="ignore") as f:
+        with open(transcript, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 if not line.startswith("{"):
@@ -168,17 +179,138 @@ def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
         logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
 
 
-def sync_skill_package() -> Path:
-    """Ensure the current templates/*.skill package is unzipped and
-    up to date at config.CLAUDE_SKILL_INSTALL_DIR, re-extracting only when
-    the source .skill file has changed (compared by mtime -- a single
-    curated file a human drops in rarely, not something worth hashing on
-    every chapter run). Returns the extracted directory path, for LOGGING
-    ONLY -- never hardcode this path into the CLI prompt itself; the
-    skill's own SKILL.md text says paths must never be hardcoded, Claude
-    Code resolves its own skill directory at runtime.
+def verify_resolved_skill(workspace: Path, expected_dirs: set) -> dict:
+    """TRUTH-CHECK for which skill actually ran (see this module's docstring):
+    confirm the `/study-notes` invocation in build_cli_prompt() resolved to
+    one of `expected_dirs` (normally {config.CLAUDE_SKILL_INSTALL_DIR,
+    config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR}, both kept fresh by
+    sync_skill_package() -- see run_stage2_chapter()), rather than trusting
+    that it did.
+
+    THIS EXISTS BECAUSE OF A REAL, OBSERVED FAILURE: on the first live
+    subprocess Stage 2 run, `/study-notes` silently fuzzy-resolved to an
+    unrelated, stale, pre-schema GLOBAL skill (~/.claude/skills/study-notes.bak-*)
+    instead of this project's own skill -- Claude Code's own
+    `<command-name>` tag in the transcript showed `/study-notes` either way,
+    so that tag CANNOT distinguish a correct resolution from that failure.
+    The real signal is a separate line Claude Code injects when a skill
+    invocation resolves: a user-role message whose text starts with
+    "Base directory for this skill: <path>" -- that path names the ACTUAL
+    resolved directory, which is what this function checks.
+
+    Returns {"checked": bool, "ok": bool, "resolved": str|None}.
+    checked=False means no resolution line was found at all (transcript
+    missing/unreadable, or genuinely no skill was invoked this session) --
+    treated as "can't say it's wrong", not as a failure, same best-effort
+    philosophy as _heartbeat_summary(). checked=True and ok=False is the
+    one case that matters: a skill WAS resolved, and it wasn't one of
+    expected_dirs -- run_stage2_chapter() treats that as fatal.
     """
-    install_dir = config.CLAUDE_SKILL_INSTALL_DIR
+    try:
+        transcript = _latest_session_transcript(workspace)
+        if transcript is None:
+            return {"checked": False, "ok": True, "resolved": None}
+        marker = "Base directory for this skill: "
+        with open(transcript, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if marker not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                content = entry.get("message", {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    text = block.get("text", "") if isinstance(block, dict) else ""
+                    if text.startswith(marker):
+                        resolved = text[len(marker):].split("\n", 1)[0].strip()
+                        return {"checked": True, "ok": resolved in expected_dirs, "resolved": resolved}
+        return {"checked": False, "ok": True, "resolved": None}
+    except Exception:
+        return {"checked": False, "ok": True, "resolved": None}
+
+
+def capture_retro_findings(target_dir: Path, workspace: Path) -> dict:
+    """Run the skill's own tools/retro.py directly (--json --rundir
+    <workspace>/.study-notes) rather than relying on the model to have
+    invoked it, or scraping its text output from the transcript --
+    consistent with this module's TRUTH-CHECK, NOT SELF-REPORTED SUCCESS
+    philosophy. Writes target_dir/config.RETRO_FINDINGS when retro.py
+    reports one or more candidate skill improvements, so they survive past
+    the unattended run instead of evaporating.
+
+    THIS EXISTS BECAUSE: SKILL.md's own retrospective workflow says to
+    "present this list, get approval" before touching the skill -- but
+    build_cli_prompt() separately instructs "fully unattended -- do not
+    pause for confirmation." Confirmed live: the model correctly resolved
+    that conflict by NOT pausing, but that meant retro.py's real findings
+    (candidate skill improvements, backed by real repeated-failure counts)
+    never reached a human at all, just a one-line dismissal buried in the
+    model's own final summary. Neither instruction is wrong -- unattended
+    runs genuinely can't hold an approval conversation -- so the fix is
+    capturing the findings durably for a human to review LATER, not making
+    the run stop and wait.
+
+    Returns {"ok": bool, "candidates": list, "log_records": int}. ok=False
+    (candidates=[]) on any failure -- retro.py exits non-zero when no run
+    log exists yet (e.g. DEV_TOKEN_SAVER_MODE, which never touches the real
+    pipeline) -- best-effort like every other post-run reader in this
+    module: never something a chapter's success/failure depends on.
+    """
+    try:
+        rundir = workspace / ".study-notes"
+        retro_py = config.CLAUDE_SKILL_INSTALL_DIR / "tools" / "retro.py"
+        result = subprocess.run(
+            [sys.executable, str(retro_py), "--rundir", str(rundir), "--json"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            return {"ok": False, "candidates": [], "log_records": 0}
+        report = json.loads(result.stdout)
+        candidates = report.get("candidates") or []
+        log_records = report.get("log_records", 0)
+        if candidates:
+            lines = [
+                f"Skill-improvement candidates from tools/retro.py ({log_records} log records this run).",
+                "Captured automatically -- NOT applied. This run was unattended, so per",
+                "build_cli_prompt()'s own instruction it correctly did not pause to ask; per",
+                "SKILL.md's retrospective workflow, nothing here should be applied to the shared",
+                "skill without a human reviewing it first (run tools/regress.py before accepting",
+                "any change, then add it to LESSONS.md -- see SKILL.md's own \"After delivery\" section).",
+                "",
+            ]
+            for i, c in enumerate(candidates, 1):
+                lines.append(f"{i}. {c.get('issue')} (observed {c.get('observed')}x)")
+                lines.append(f"   {c.get('change')}")
+                lines.append("")
+            (target_dir / config.RETRO_FINDINGS).write_text("\n".join(lines), encoding="utf-8")
+        return {"ok": True, "candidates": candidates, "log_records": log_records}
+    except Exception:
+        return {"ok": False, "candidates": [], "log_records": 0}
+
+
+def sync_skill_package(install_dir: Path = None) -> Path:
+    """Ensure the current templates/*.skill package is unzipped and
+    up to date at `install_dir`, re-extracting only when the source .skill
+    file has changed (compared by mtime -- a single curated file a human
+    drops in rarely, not something worth hashing on every chapter run).
+    Returns the extracted directory path, for LOGGING ONLY -- never
+    hardcode this path into the CLI prompt itself; the skill's own
+    SKILL.md text says paths must never be hardcoded, Claude Code resolves
+    its own skill directory at runtime.
+
+    install_dir defaults to config.CLAUDE_SKILL_INSTALL_DIR (project-local).
+    run_stage2_chapter() calls this TWICE: once with the default (unchanged
+    behavior) and once with config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR, so both
+    the project-local and the global (user-level, always-discoverable)
+    copies stay in lockstep -- see CLAUDE_SKILL_GLOBAL_INSTALL_DIR's own
+    comment in config/settings.py for why the global copy exists at all
+    (project-local skill discovery was confirmed unreliable from this
+    module's nested workspace cwd on the first live run).
+    """
+    install_dir = install_dir or config.CLAUDE_SKILL_INSTALL_DIR
     candidates = sorted(
         config.LOCAL_RUNTIME_ROOT.glob(config.CLAUDE_SKILL_SOURCE_GLOB),
         key=lambda p: p.stat().st_mtime,
@@ -209,6 +341,156 @@ def sync_skill_package() -> Path:
     marker_file.write_text(stamp, encoding="utf-8")
     logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
     return install_dir
+
+
+def _repackage_skill_dir(skill_dir: Path, out_skill_file: Path) -> None:
+    """Zip skill_dir's contents back into out_skill_file (overwriting it),
+    the inverse of sync_skill_package()'s extractall(). Used only by
+    apply_retro_fixes(), after regress.py has independently confirmed a
+    self-improvement session's edits are safe to keep."""
+    with zipfile.ZipFile(out_skill_file, "w") as zf:
+        for path in sorted(skill_dir.rglob("*")):
+            arcname = path.relative_to(skill_dir).as_posix()
+            if path.is_dir():
+                zf.writestr(arcname + "/", b"")
+            else:
+                zf.write(path, arcname, compress_type=zipfile.ZIP_DEFLATED)
+
+
+def apply_retro_fixes(candidates: list, source_workspace: Path) -> dict:
+    """Autonomously apply tools/retro.py's candidate skill improvements --
+    opt-in (config.ENABLE_AUTO_SKILL_IMPROVEMENT), a SEPARATE claude -p
+    session from chapter generation itself, scoped ONLY to editing a scratch
+    copy of the skill and validating via tools/regress.py.
+
+    Explicitly authorized to skip human approval, unlike SKILL.md's own
+    interactive-session "present this list, get approval" retrospective
+    text (that text still describes the right workflow for a human doing
+    skill development directly -- this function exists for the unattended
+    pipeline, which has no one to ask): git tracks
+    templates/study-notes.skill, so a bad change is always recoverable.
+    tools/regress.py is still the accept/reject gate, and it is
+    INDEPENDENTLY RE-RUN by this function after the session claims success,
+    never just trusted -- this module's TRUTH-CHECK, NOT SELF-REPORTED
+    SUCCESS rule applies here too, arguably more so: this is the one code
+    path in the whole pipeline that can rewrite the pipeline's own
+    behavior for every future chapter.
+
+    source_workspace is the chapter workspace whose .study-notes/run.jsonl
+    produced `candidates` -- granted read access (via --add-dir) so the
+    fixing session can look at the RAW logged instances behind each
+    aggregated candidate. issue/count/suggested-change alone isn't enough
+    to tell a genuine defect from a false positive: the SLASH_OK fix this
+    function is modeled on needed exactly that raw evidence (2 of 3 flagged
+    instances turned out to be false positives, not the genuine "make the
+    frac rule more prominent" fix the aggregated candidate alone suggested).
+
+    Returns {"applied": bool, "reason": str}.
+    """
+    workspace = config.AUTO_SKILL_IMPROVEMENT_WORKSPACE
+    workspace.mkdir(parents=True, exist_ok=True)
+    skill_copy = workspace / "skill_copy"
+
+    try:
+        source_skill = sorted(
+            config.LOCAL_RUNTIME_ROOT.glob(config.CLAUDE_SKILL_SOURCE_GLOB),
+            key=lambda p: p.stat().st_mtime, reverse=True,
+        )
+        if not source_skill:
+            return {"applied": False, "reason": "no templates/*.skill source found"}
+        # Always start from the CURRENT accepted skill, discarding any stale
+        # copy from a previous attempt -- this function must never build on
+        # top of a change that was itself never validated.
+        if skill_copy.exists():
+            shutil.rmtree(skill_copy)
+        skill_copy.mkdir(parents=True)
+        with zipfile.ZipFile(source_skill[0], "r") as zf:
+            zf.extractall(skill_copy)
+
+        candidate_lines = "\n".join(
+            f"{i}. {c.get('issue')} (observed {c.get('observed')}x): {c.get('change')}"
+            for i, c in enumerate(candidates, 1)
+        )
+        prompt = f"""Fully unattended -- do not pause for confirmation and do not ask any questions.
+
+tools/retro.py found these candidate skill improvements from a real chapter generation run:
+
+{candidate_lines}
+
+Skill copy to edit (a scratch copy -- never edit anything outside this path):
+  {skill_copy}
+
+Raw evidence for these candidates (the actual logged tool events, not just the
+aggregated summary above) is at:
+  {source_workspace / ".study-notes" / "run.jsonl"}
+
+For EACH candidate: read the raw evidence behind it before deciding on a fix -- an
+aggregated "observed Nx" count can hide a mix of genuine defects and false positives
+that need different fixes (or no fix at all). Make the smallest change that addresses
+what the evidence actually shows. Skip a candidate rather than guess if the evidence
+doesn't clearly support one fix.
+
+Before finishing, from cwd {workspace} (node_modules must be installed here first --
+`npm install --silent --no-audit --no-fund docx@9.7.1` if not already present), run:
+  python3 {skill_copy}/tools/regress.py
+It must exit 0 (PASS). If it doesn't, revert whichever change caused the failure and
+either try a smaller fix or skip that candidate -- a change that fails regress.py must
+never be left in place, regardless of how reasonable it seemed.
+
+For every change you keep, add a one-line entry to {skill_copy}/LESSONS.md following
+its existing table format (see the file for the convention).
+
+Report at the end: which candidates you addressed, which you skipped and why, and
+confirm regress.py's final pass/fail."""
+
+        allowed_tools = config.CLAUDE_ALLOWED_TOOLS
+        cmd = [config.CLAUDE_BIN, "-p", prompt,
+               "--output-format", "json",
+               "--permission-mode", config.CLAUDE_PERMISSION_MODE,
+               "--allowedTools", allowed_tools,
+               "--add-dir", str(source_workspace / ".study-notes")]
+        if getattr(config, 'CLAUDE_MODEL', ''):
+            cmd += ["--model", config.CLAUDE_MODEL]
+
+        logger.info(f"Invoking claude CLI for autonomous skill improvement "
+                    f"({len(candidates)} candidate(s), cwd={workspace}) ...")
+        try:
+            proc = subprocess.run(cmd, cwd=str(workspace), env=build_claude_env(),
+                                   capture_output=True, text=True,
+                                   timeout=config.AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            return {"applied": False, "reason": "claude CLI call timed out"}
+        except Exception as e:
+            return {"applied": False, "reason": f"launch failure: {e}"}
+
+        # TRUTH-CHECK: re-run regress.py OURSELVES against skill_copy,
+        # regardless of what the session's own JSON envelope or final text
+        # claims -- see this function's docstring.
+        try:
+            regress = subprocess.run(
+                [sys.executable, str(skill_copy / "tools" / "regress.py")],
+                cwd=str(workspace), capture_output=True, text=True, timeout=120,
+            )
+        except Exception as e:
+            return {"applied": False, "reason": f"regress.py could not be run: {e}"}
+
+        if regress.returncode != 0:
+            logger.warning(f"Autonomous skill improvement attempt did NOT pass "
+                            f"regress.py (exit {regress.returncode}); discarding, "
+                            f"templates/study-notes.skill unchanged.")
+            return {"applied": False, "reason": "regress.py failed after the session's edits",
+                    "regress_output": regress.stdout[-2000:]}
+
+        _repackage_skill_dir(skill_copy, source_skill[0])
+        sync_skill_package()
+        sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)
+        logger.info(f"Autonomous skill improvement applied and verified via regress.py "
+                    f"(claude CLI returncode={proc.returncode}); "
+                    f"templates/study-notes.skill updated and re-synced.")
+        return {"applied": True, "reason": "regress.py passed", "session_result": proc.stdout[-2000:]}
+    except Exception as e:
+        logger.exception(f"Unexpected error during autonomous skill improvement: {e}")
+        return {"applied": False, "reason": f"unexpected error: {e}"}
 
 
 def _chapter_workspace(target_dir: Path) -> Path:
@@ -547,7 +829,9 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
     # the whole nightly process.
     progress_file = config.CHAPTER_PROGRESS_DIR / f"{target_dir.name}.json"
     try:
-        sync_skill_package()
+        sync_skill_package()  # project-local (primary)
+        sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)  # global (belt-and-suspenders --
+            # see config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR's comment)
 
         config.CHAPTER_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -599,10 +883,59 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
             except Exception as e:
                 logger.warning(f"Could not save progress file: {e}")
 
+        if not getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
+            # Skip in dev mode: DEV_TOKEN_SAVER_MODE's dummy prompt never
+            # invokes /study-notes at all (see its own comment above), so
+            # there is no skill resolution to verify.
+            skill_check = verify_resolved_skill(
+                _chapter_workspace(target_dir),
+                {str(config.CLAUDE_SKILL_INSTALL_DIR), str(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)},
+            )
+            if skill_check["checked"]:
+                logger.info(f"Resolved skill dir: {skill_check['resolved']}")
+            if skill_check["checked"] and not skill_check["ok"]:
+                # TRUTH-CHECK, NOT SELF-REPORTED SUCCESS (see module docstring):
+                # a wrong skill can still produce a file at expected_docx by
+                # luck/hand-rolling (confirmed live -- see the plan/commit
+                # this check was added after), so this is checked BEFORE and
+                # INDEPENDENTLY of the expected_docx.exists() gate below, not
+                # folded into it.
+                logger.error(f"claude CLI resolved '/study-notes' to the WRONG skill "
+                              f"({skill_check['resolved']}), not one of the expected, "
+                              f"freshly-synced locations. Placing failure marker.")
+                (target_dir / config.FAILMARK).write_text(
+                    f"claude CLI's /study-notes invocation resolved to an unexpected skill "
+                    f"directory ({skill_check['resolved']}) instead of the project's own, "
+                    f"freshly-synced skill. This usually means a stale/misnamed skill is "
+                    f"shadowing the real one somewhere Claude Code scans for skills -- see "
+                    f"docs/cli-subprocess-plan.md.\n", encoding="utf-8")
+                progress_file.unlink(missing_ok=True)
+                return EXIT_FATAL
+
         if result["ok"] and expected_docx.exists():
             logger.info("Target docx confirmed. Placing success marker.")
             if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
                 write_web_sources_manifest(target_dir, _chapter_workspace(target_dir))
+            retro = capture_retro_findings(target_dir, _chapter_workspace(target_dir))
+            if retro["candidates"]:
+                if getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
+                    logger.warning(f"{len(retro['candidates'])} skill-improvement candidate(s) "
+                                    f"found this run -- see {config.RETRO_FINDINGS} in "
+                                    f"{target_dir.name}. Attempting autonomous fix (regress.py-gated)...")
+                    fix_result = apply_retro_fixes(retro["candidates"], _chapter_workspace(target_dir))
+                    if fix_result["applied"]:
+                        logger.warning("Autonomous skill improvement APPLIED and verified via "
+                                       "regress.py; templates/study-notes.skill updated and re-synced.")
+                    else:
+                        logger.warning(f"Autonomous skill improvement NOT applied "
+                                        f"({fix_result['reason']}) -- see {config.RETRO_FINDINGS} "
+                                        f"in {target_dir.name} to review/apply manually.")
+                else:
+                    logger.warning(f"ACTION NEEDED: {len(retro['candidates'])} skill-improvement "
+                                    f"candidate(s) found this run -- see {config.RETRO_FINDINGS} in "
+                                    f"{target_dir.name}. Set ENABLE_AUTO_SKILL_IMPROVEMENT=1 to have "
+                                    f"these applied automatically (regress.py-gated), or review "
+                                    f"manually (see SKILL.md's retrospective workflow).")
             (target_dir / config.MARKER).write_text("Done", encoding="utf-8")
             progress_file.unlink(missing_ok=True)
             return EXIT_OK
