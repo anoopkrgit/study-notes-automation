@@ -6,14 +6,23 @@ Originally written once in stage2_cli.py (PR #5, "web-enrichment") and
 then duplicated-with-drift into stage2_graph.py when Stage 2 was ported to
 the agents/LangGraph architecture; moved here so there is exactly one copy
 for both implementations to call, instead of two that quietly diverge over
-time (see docs/agents-port-plan.md's review notes for the drift that had
-already started: default values, comments, and one dropped code path).
+time (the two copies had already started drifting on default values,
+comments, and one dropped code path before being unified here).
 
 Every function below is implementation-agnostic: they operate purely on
 paths (a rundir containing .study-notes/run.jsonl, a skill directory, a
 list of candidate dicts) and have no idea whether the chapter that produced
 those findings was generated via the `claude` CLI, LangGraph, or the
 direct Anthropic SDK path.
+
+TRUTH-CHECK, NOT SELF-REPORTED SUCCESS (a rule these functions repeatedly
+lean on): never trust a model's own claim that it did the right thing --
+re-derive it from ground truth instead. Here that means running the skill's
+own tools/retro.py against the real run log rather than asking the model
+what it found, and independently re-running tools/regress.py after a fix
+session rather than trusting its "done". Same principle stated in
+src/claude_cli_subprocess/stage2_cli.py's module docstring, where the CLI
+Stage 2 generator applies it to whether a chapter actually produced a .docx.
 
 apply_retro_fixes() is the one exception worth calling out: it still needs
 an actual `claude -p` subprocess call (via
@@ -222,7 +231,7 @@ confirm regress.py's final pass/fail."""
             target_dir=source_workspace / ".study-notes",
             prompt=prompt,
             workspace_override=workspace,
-            timeout_seconds=getattr(config, 'AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS', 1800)
+            timeout_seconds=config.AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS
         )
         if not result["ok"]:
             return {"applied": False, "reason": result.get("error", "cli call failed")}
@@ -257,7 +266,7 @@ confirm regress.py's final pass/fail."""
         repackage_skill_dir(skill_copy, source_skill[0])
         try:
             sync_skill_package()
-            sync_skill_package(getattr(config, 'CLAUDE_SKILL_GLOBAL_INSTALL_DIR', Path.home() / ".claude" / "skills" / "study-notes"))
+            sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)
             logger.info(f"Autonomous skill improvement applied and verified via regress.py "
                         f"(claude CLI returncode={result['returncode']}); "
                         f"templates/study-notes.skill updated and re-synced.")

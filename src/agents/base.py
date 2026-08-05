@@ -285,11 +285,11 @@ def make_agent_node(
                                     # same config value rather than treating fetches as a
                                     # separate, larger budget.
                                     if tool_name == 'tool_web_search':
-                                        if web_searches >= getattr(config, 'MAX_WEB_SEARCHES_PER_CHAPTER', 3):
+                                        if web_searches >= config.MAX_WEB_SEARCHES_PER_CHAPTER:
                                             raise Exception("Budget exceeded: Maximum web searches for this chapter reached.")
                                         web_searches += 1
                                     elif tool_name == 'tool_web_fetch':
-                                        if web_fetches >= getattr(config, 'MAX_WEB_SEARCHES_PER_CHAPTER', 3):
+                                        if web_fetches >= config.MAX_WEB_SEARCHES_PER_CHAPTER:
                                             raise Exception("Budget exceeded: Maximum web fetches for this chapter reached.")
                                         web_fetches += 1
                                         

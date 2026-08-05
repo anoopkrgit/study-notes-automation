@@ -42,10 +42,10 @@ one or two cheap turns.
 from __future__ import annotations
 
 import zipfile
-import fcntl
 from pathlib import Path
 
 import settings as config
+from src.common.skill_package import locked_refresh
 
 def load_skill_md_from_zip() -> str:
     """Read SKILL.md (the master content/formatting rulebook) out of the
@@ -142,30 +142,25 @@ def ensure_skill_extracted() -> Path:
     zip_mtime = zip_path.stat().st_mtime
     extracted_marker = skill_dir / '.extracted'
 
-    # Check lock-free first for speed
-    if extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime:
-        return skill_dir
-        
-    lock_file = skill_dir / '.lock'
-    lock_file.parent.mkdir(parents=True, exist_ok=True)
-    lock_file.touch(exist_ok=True)
-    
-    with open(lock_file, 'r') as lf:
-        try:
-            fcntl.flock(lf, fcntl.LOCK_EX)
-            # Re-check under lock
-            if extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime:
-                return skill_dir
-                
-            try:
-                with zipfile.ZipFile(zip_path, 'r') as zf:
-                    zf.extractall(skill_dir)
-                extracted_marker.touch()
-            except Exception:
-                pass
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+    def is_fresh() -> bool:
+        return extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime
 
+    # Cheap lock-free check first -- the common case is "already unpacked,
+    # ZIP unchanged", and that shouldn't pay for a lock.
+    if is_fresh():
+        return skill_dir
+
+    def refresh() -> None:
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                zf.extractall(skill_dir)
+            extracted_marker.touch()
+        except Exception:
+            pass
+
+    # The flock + re-check-under-lock dance is shared with
+    # stage2_cli.sync_skill_package() -- see src/common/skill_package.py.
+    locked_refresh(skill_dir / '.lock', is_fresh, refresh)
     return skill_dir
 
 def author_system_prompt(state: dict) -> list[dict]:
