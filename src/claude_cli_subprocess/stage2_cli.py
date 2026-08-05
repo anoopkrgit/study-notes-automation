@@ -468,6 +468,10 @@ confirm regress.py's final pass/fail."""
         # regardless of what the session's own JSON envelope or final text
         # claims -- see this function's docstring.
         try:
+            # Ensure docx is installed in the workspace, as regress.py relies on it and the fixing session might have skipped or failed it
+            if not (workspace / "node_modules" / "docx").exists():
+                subprocess.run(["npm", "install", "docx"], cwd=str(workspace), capture_output=True)
+
             regress = subprocess.run(
                 [sys.executable, str(skill_copy / "tools" / "regress.py")],
                 cwd=str(workspace), capture_output=True, text=True, timeout=120,
