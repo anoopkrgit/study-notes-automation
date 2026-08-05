@@ -447,6 +447,7 @@ its existing table format (see the file for the convention).
 Report at the end: which candidates you addressed, which you skipped and why, and
 confirm regress.py's final pass/fail."""
 
+        start_time = time.time()
         logger.info(f"Invoking claude CLI for autonomous skill improvement "
                     f"({len(candidates)} candidate(s), cwd={workspace}) ...")
         result = run_claude_cli(
@@ -457,6 +458,11 @@ confirm regress.py's final pass/fail."""
         )
         if not result["ok"]:
             return {"applied": False, "reason": result.get("error", "cli call failed")}
+
+        # Check if the session actually made any changes to the skill dir
+        modified = any(p.stat().st_mtime > start_time for p in skill_copy.rglob("*") if p.is_file())
+        if not modified:
+            return {"applied": False, "reason": "session exited without modifying the skill"}
 
         # TRUTH-CHECK: re-run regress.py OURSELVES against skill_copy,
         # regardless of what the session's own JSON envelope or final text
