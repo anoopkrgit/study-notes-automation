@@ -447,23 +447,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
         with get_checkpointer(chapter_dir_str) as checkpointer:
             compiled = graph.compile(checkpointer=checkpointer)
             final_state = compiled.invoke(initial_state, config=thread_config)
-            
-            target_dir = Path(chapter_dir)
-            # Where THIS chapter's .study-notes/run.jsonl actually lives --
-            # a local scratch workspace, not target_dir itself (which is
-            # normally Drive-synced). See src/agents/tools.py's
-            # _skill_run_env, which scopes every skill-script subprocess
-            # call to this same folder.
-            chapter_workspace = _chapter_workspace(target_dir)
 
-            if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
-                write_web_sources_manifest(target_dir, final_state.get('web_sources', []))
-
-            retro = capture_retro_findings(target_dir, chapter_workspace,
-                                            resolved_skill_dir=Path(ensure_skill_extracted()))
-            if retro["ok"] and retro["candidates"] and getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
-                apply_retro_fixes(retro["candidates"], chapter_workspace)
-                
     except Exception as e:
         # Something broke outside any individual node's own error handling
         # (e.g. the checkpoint database itself couldn't be opened) --
@@ -489,6 +473,32 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
                 encoding="utf-8",
             )
             return EXIT_FATAL
+
+        # Post-run web-sources manifest + retrospective capture/auto-fix.
+        # Gated on a PROVEN-successful chapter (status done AND a real .docx),
+        # mirroring claude_cli_subprocess.stage2_cli's own
+        # `if result["ok"] and expected_docx.exists()` gate -- a failed or
+        # atypical run must never drive an autonomous skill mutation. Placed
+        # OUTSIDE the generation try/except above so a stray error in this
+        # best-effort post-processing can never flip an already-successful
+        # chapter to EXIT_FATAL (each helper is also internally best-effort).
+        target_dir = Path(chapter_dir)
+        # Where THIS chapter's .study-notes/run.jsonl actually lives -- a
+        # local scratch workspace, not target_dir itself (which is normally
+        # Drive-synced). See src/agents/tools.py's _skill_run_env, which
+        # scopes every skill-script subprocess call to this same folder.
+        chapter_workspace = _chapter_workspace(target_dir)
+        try:
+            if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+                write_web_sources_manifest(target_dir, final_state.get('web_sources', []))
+
+            retro = capture_retro_findings(target_dir, chapter_workspace,
+                                            resolved_skill_dir=Path(ensure_skill_extracted()))
+            if retro["ok"] and retro["candidates"] and getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
+                apply_retro_fixes(retro["candidates"], chapter_workspace)
+        except Exception as e:
+            logger.warning(f"Post-run retro/manifest step failed (chapter still OK): {e}")
+
         marker_path = Path(chapter_dir_str) / config.MARKER
         marker_path.touch()
         return EXIT_OK

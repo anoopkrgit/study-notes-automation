@@ -34,10 +34,8 @@ import json
 import re
 import shutil
 import subprocess
-import sys
 import time
 import zipfile
-import fcntl
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -46,6 +44,7 @@ from src.func_tools_and_utils import (
     logger, write_retry_epoch, EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 )
 from .common import build_claude_env, is_usage_limit
+from src.common.skill_package import locked_refresh
 # Shared with src/agents/stage2_graph.py -- see src/common/skill_retro.py's
 # module docstring for why this lives outside both implementations.
 # Re-exported under these names (including the _repackage_skill_dir alias)
@@ -278,39 +277,33 @@ def sync_skill_package(install_dir: Path = None) -> Path:
     source = candidates[0]
     marker_file = install_dir / ".synced_from"
     stamp = f"{source}|{source.stat().st_mtime}"
-    if install_dir.exists() and marker_file.exists():
-        try:
-            if marker_file.read_text(encoding="utf-8").strip() == stamp:
-                logger.info(f"Skill package unchanged ({source.name}); skipping re-extract.")
-                return install_dir
-        except Exception:
-            pass  # fall through and re-extract if the stamp is unreadable
+
+    def is_fresh() -> bool:
+        if install_dir.exists() and marker_file.exists():
+            try:
+                return marker_file.read_text(encoding="utf-8").strip() == stamp
+            except Exception:
+                return False  # unreadable stamp -> treat as stale and re-extract
+        return False
+
+    if is_fresh():
+        logger.info(f"Skill package unchanged ({source.name}); skipping re-extract.")
+        return install_dir
 
     logger.info(f"Syncing skill package {source} -> {install_dir} ...")
-    lock_file = install_dir.parent / f"{install_dir.name}.lock"
-    install_dir.parent.mkdir(parents=True, exist_ok=True)
-    with open(lock_file, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            # Re-check inside the lock in case another process just synced it
-            if install_dir.exists() and marker_file.exists():
-                try:
-                    if marker_file.read_text(encoding="utf-8").strip() == stamp:
-                        logger.info(f"Skill package unchanged ({source.name}); skipping re-extract (checked after lock).")
-                        return install_dir
-                except Exception:
-                    pass
 
-            if install_dir.exists():
-                shutil.rmtree(install_dir)
-            install_dir.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(source, "r") as zf:
-                zf.extractall(install_dir)
-            marker_file.write_text(stamp, encoding="utf-8")
-            logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
-    
+    def refresh() -> None:
+        if install_dir.exists():
+            shutil.rmtree(install_dir)
+        install_dir.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(source, "r") as zf:
+            zf.extractall(install_dir)
+        marker_file.write_text(stamp, encoding="utf-8")
+        logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
+
+    # The flock + re-check-under-lock dance is shared with
+    # prompts.ensure_skill_extracted() -- see src/common/skill_package.py.
+    locked_refresh(install_dir.parent / f"{install_dir.name}.lock", is_fresh, refresh)
     return install_dir
 
 

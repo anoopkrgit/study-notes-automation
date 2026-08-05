@@ -350,8 +350,7 @@ def _is_domain_allowed(domain: str) -> bool:
     config.WEB_SEARCH_ALLOWED_DOMAINS, shared with the claude_cli_subprocess
     implementation, not a separately-maintained copy. `domain` matches if
     it equals an allowed entry or is a subdomain of one."""
-    allowed = getattr(config, 'WEB_SEARCH_ALLOWED_DOMAINS', [])
-    return any(domain == d or domain.endswith("." + d) for d in allowed)
+    return any(domain == d or domain.endswith("." + d) for d in config.WEB_SEARCH_ALLOWED_DOMAINS)
 
 
 def tool_web_search(query: str, allowed_domains: list[str], chapter_dir: str) -> str:
@@ -366,11 +365,10 @@ def tool_web_search(query: str, allowed_domains: list[str], chapter_dir: str) ->
     if not DDGS:
         return json.dumps({"error": "ddgs library not installed. Web search unavailable."})
 
-    allowed = getattr(config, 'WEB_SEARCH_ALLOWED_DOMAINS', [])
     validated_domains = [d for d in allowed_domains if _is_domain_allowed(d)]
 
     if not validated_domains:
-        return json.dumps({"error": f"None of the requested domains are in the whitelist: {allowed}"})
+        return json.dumps({"error": f"None of the requested domains are in the whitelist: {config.WEB_SEARCH_ALLOWED_DOMAINS}"})
 
     site_query = " OR ".join([f"site:{d}" for d in validated_domains])
     full_query = f"{query} ({site_query})"
@@ -397,9 +395,8 @@ def tool_web_fetch(url: str, chapter_dir: str) -> str:
     # Validate domain (and scheme -- urllib also understands file:// etc.,
     # which must never reach urlopen() here).
     parsed = urllib.parse.urlparse(url)
-    allowed = getattr(config, 'WEB_SEARCH_ALLOWED_DOMAINS', [])
     if parsed.scheme not in ("http", "https") or not _is_domain_allowed(parsed.netloc):
-        return json.dumps({"error": f"Domain {parsed.netloc} is not in the whitelist: {allowed}"})
+        return json.dumps({"error": f"Domain {parsed.netloc} is not in the whitelist: {config.WEB_SEARCH_ALLOWED_DOMAINS}"})
 
     logger.info(f"[tool_web_fetch] Fetching: {url}")
     try:
@@ -450,10 +447,16 @@ def tool_figbuild(figures_json_path: str, chapter_dir: str) -> dict:
 
     skill_dir = Path(ensure_skill_extracted())
     figbuild_script = skill_dir / 'lib' / 'figbuild.py'
-    
+
+    # figbuild.py logs collision/error/result events to .study-notes/run.jsonl
+    # via tools/_log.py (unlike validate.py, which doesn't log at all), so it
+    # needs the same STUDY_NOTES_RUNDIR scoping as every other logging skill
+    # script here -- otherwise its figure-collision findings, which retro.py's
+    # RULES specifically look for, leak into an unscoped run.jsonl at the
+    # parent process's cwd. See _skill_run_env's docstring.
     result = subprocess.run(
         ['python3', str(figbuild_script), figures_json_path, '--out', chapter_dir],
-        capture_output=True, text=True
+        capture_output=True, text=True, env=_skill_run_env(chapter_dir)
     )
     
     if result.returncode == 0:
@@ -788,9 +791,14 @@ WEB_ENRICHMENT_TOOLS = [
             "properties": {
                 "query": {"type": "string", "description": "The search query"},
                 "allowed_domains": {
-                    "type": "array", 
-                    "items": {"type": "string"}, 
-                    "description": "List of domains to restrict the search to. Allowed: en.wikipedia.org, simple.wikipedia.org, khanacademy.org, byjus.com, britannica.com"
+                    "type": "array",
+                    "items": {"type": "string"},
+                    # Built from config.WEB_SEARCH_ALLOWED_DOMAINS (the SAME list
+                    # _is_domain_allowed() actually enforces) so this description
+                    # can never drift from what the tool will really accept -- a
+                    # hardcoded list here previously advertised domains that were
+                    # then rejected, wasting the model's budget on doomed calls.
+                    "description": "List of domains to restrict the search to. Allowed: " + ", ".join(config.WEB_SEARCH_ALLOWED_DOMAINS)
                 },
                 "chapter_dir": {"type": "string", "description": "The current chapter directory"}
             },
