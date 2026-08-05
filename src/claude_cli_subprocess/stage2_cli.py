@@ -158,6 +158,7 @@ def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
                         continue
                     name = block.get("name")
                     tool_input = block.get("input") or {}
+                    # Defensive parsing: if tool_input isn't a dict (e.g. model hallucinated a string), skip to avoid aborting the audit trail
                     if not isinstance(tool_input, dict):
                         continue
                     if name == "WebSearch":
