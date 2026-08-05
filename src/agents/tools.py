@@ -61,47 +61,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 
 import settings as config
-import urllib.request
-import urllib.parse
-from html.parser import HTMLParser
-
-try:
-    from ddgs import DDGS
-except ImportError:
-    # We will assume it's installed or provided, but fallback gracefully if missing
-    DDGS = None
-
-# A very basic HTML to text parser for tool_web_fetch
-class SimpleHTMLToText(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.text_parts = []
-        self.in_body = False
-        self.ignore_tags = {'script', 'style', 'head', 'meta', 'link'}
-        self.current_ignore = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag == 'body':
-            self.in_body = True
-        if tag in self.ignore_tags:
-            self.current_ignore += 1
-        if tag in {'p', 'br', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'}:
-            self.text_parts.append('\n')
-
-    def handle_endtag(self, tag):
-        if tag in self.ignore_tags and self.current_ignore > 0:
-            self.current_ignore -= 1
-        if tag == 'body':
-            self.in_body = False
-
-    def handle_data(self, data):
-        if self.in_body and self.current_ignore == 0:
-            cleaned = data.strip()
-            if cleaned:
-                self.text_parts.append(cleaned + " ")
-
-    def get_text(self):
-        return "".join(self.text_parts).strip()
 
 from src.func_tools_and_utils import (
     logger,
@@ -111,6 +70,10 @@ from src.func_tools_and_utils import (
 )
 from src.agents.prompts import ensure_skill_extracted
 from src.claude_cli_subprocess.stage2_cli import _chapter_workspace
+# The actual web-search/fetch behavior is shared with src/direct_api -- see
+# src/common/web_enrichment.py. The wrappers below just adapt it to the
+# agents tool signature (which passes a chapter_dir every tool must accept).
+from src.common.web_enrichment import web_search as _web_search, web_fetch as _web_fetch
 
 
 def _validate_path(requested: str, allowed_root: str) -> Path:
@@ -345,88 +308,19 @@ def tool_read_qa_feedback(chapter_dir: str) -> dict:
     return {}
 
 
-def _is_domain_allowed(domain: str) -> bool:
-    """Single source of truth for the web-enrichment domain whitelist --
-    config.WEB_SEARCH_ALLOWED_DOMAINS, shared with the claude_cli_subprocess
-    implementation, not a separately-maintained copy. `domain` matches if
-    it equals an allowed entry or is a subdomain of one."""
-    return any(domain == d or domain.endswith("." + d) for d in config.WEB_SEARCH_ALLOWED_DOMAINS)
-
-
 def tool_web_search(query: str, allowed_domains: list[str], chapter_dir: str) -> str:
-    """
-    Search the web for a query, constrained to allowed domains.
-    Returns a list of URLs and snippets.
-    """
-    if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
-        logger.info(f"[tool_web_search] DEV MODE mock search for: {query}")
-        return json.dumps([{"url": "https://en.wikipedia.org/wiki/Mock", "title": "Mock", "snippet": "Mock search result."}])
+    """Search the web for a query, constrained to allowed domains. Thin
+    wrapper over the shared implementation (src/common/web_enrichment.py) --
+    chapter_dir is accepted because the agents tool loop injects it into
+    every tool call, but web search doesn't use it."""
+    return _web_search(query, allowed_domains)
 
-    if not DDGS:
-        return json.dumps({"error": "ddgs library not installed. Web search unavailable."})
-
-    validated_domains = [d for d in allowed_domains if _is_domain_allowed(d)]
-
-    if not validated_domains:
-        return json.dumps({"error": f"None of the requested domains are in the whitelist: {config.WEB_SEARCH_ALLOWED_DOMAINS}"})
-
-    site_query = " OR ".join([f"site:{d}" for d in validated_domains])
-    full_query = f"{query} ({site_query})"
-
-    logger.info(f"[tool_web_search] Searching: {full_query}")
-    try:
-        results = DDGS().text(full_query, max_results=5)
-        # DuckDuckGo sometimes returns empty lists if no results
-        if not results:
-            return json.dumps([])
-        return json.dumps([{"url": r.get('href'), "title": r.get('title'), "snippet": r.get('body')} for r in results])
-    except Exception as e:
-        logger.error(f"[tool_web_search] Error: {e}")
-        return json.dumps({"error": f"Search failed: {str(e)}"})
 
 def tool_web_fetch(url: str, chapter_dir: str) -> str:
-    """
-    Fetch and return the readable text content of a URL.
-    """
-    if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
-        logger.info(f"[tool_web_fetch] DEV MODE mock fetch for: {url}")
-        return "Mock content for web fetch."
-
-    # Validate domain (and scheme -- urllib also understands file:// etc.,
-    # which must never reach urlopen() here).
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in ("http", "https") or not _is_domain_allowed(parsed.netloc):
-        return json.dumps({"error": f"Domain {parsed.netloc} is not in the whitelist: {config.WEB_SEARCH_ALLOWED_DOMAINS}"})
-
-    logger.info(f"[tool_web_fetch] Fetching: {url}")
-    try:
-        req = urllib.request.Request(
-            url,
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            # urlopen follows redirects with no domain re-check of its own --
-            # re-validate the URL actually reached before trusting the body,
-            # so an allowed page can't silently redirect us off-whitelist.
-            final_domain = urllib.parse.urlparse(response.url).netloc
-            if not _is_domain_allowed(final_domain):
-                return json.dumps({"error": f"Redirected outside the allowed domains (to {final_domain}); refusing to read the response."})
-            # Cap bytes read, not just the text after decoding -- an
-            # allowed domain serving an unexpectedly huge page shouldn't be
-            # read into memory in full first.
-            html = response.read(2_000_000).decode('utf-8', errors='ignore')
-            parser = SimpleHTMLToText()
-            parser.feed(html)
-            text = parser.get_text()
-
-            # Cap the length to avoid blowing up the context window
-            max_len = 15000
-            if len(text) > max_len:
-                text = text[:max_len] + "\n\n...[CONTENT TRUNCATED]..."
-            return text
-    except Exception as e:
-        logger.error(f"[tool_web_fetch] Error fetching {url}: {e}")
-        return json.dumps({"error": f"Fetch failed: {str(e)}"})
+    """Fetch the readable text content of a URL. Thin wrapper over the shared
+    implementation (src/common/web_enrichment.py); chapter_dir is accepted
+    but unused (see tool_web_search)."""
+    return _web_fetch(url)
 
 
 # -----------------------------------------------------------------------------
@@ -794,8 +688,8 @@ WEB_ENRICHMENT_TOOLS = [
                     "type": "array",
                     "items": {"type": "string"},
                     # Built from config.WEB_SEARCH_ALLOWED_DOMAINS (the SAME list
-                    # _is_domain_allowed() actually enforces) so this description
-                    # can never drift from what the tool will really accept -- a
+                    # web_enrichment.is_domain_allowed() actually enforces) so this
+                    # description can never drift from what the tool will really accept -- a
                     # hardcoded list here previously advertised domains that were
                     # then rejected, wasting the model's budget on doomed calls.
                     "description": "List of domains to restrict the search to. Allowed: " + ", ".join(config.WEB_SEARCH_ALLOWED_DOMAINS)

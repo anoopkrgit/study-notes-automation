@@ -65,6 +65,7 @@ from src.func_tools_and_utils import (
 # Shared with src/claude_cli_subprocess/stage2_cli.py -- see
 # src/common/skill_retro.py's module docstring.
 from src.common.skill_retro import capture_retro_findings, apply_retro_fixes
+from src.common.web_enrichment import write_web_sources_manifest
 from src.claude_cli_subprocess.stage2_cli import _chapter_workspace
 from src.agents.base import Stage2State, make_agent_node, get_checkpointer
 from src.agents.prompts import (
@@ -329,19 +330,6 @@ def build_stage2_graph():
 # -----------------------------------------------------------------------------
 # RETRO / WEB ENRICHMENT HELPERS
 # -----------------------------------------------------------------------------
-
-def write_web_sources_manifest(target_dir: Path, web_sources: list[str]) -> None:
-    if not web_sources:
-        return
-    try:
-        lines = ["Web enrichment audit trail (docs/web-enrichment-plan.md).",
-                 "Built from the actual agent graph tool executions, not self-reported.",
-                 "", f"Pages fetched ({len(web_sources)}):"]
-        lines += [f"  - {u}" for u in web_sources] or ["  (none)"]
-        (target_dir / config.WEB_SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
-        logger.info(f"Wrote {config.WEB_SOURCES} ({len(web_sources)} fetch(es)).")
-    except Exception as e:
-        logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
 
 # -----------------------------------------------------------------------------
 # GRAPH RUNNER
