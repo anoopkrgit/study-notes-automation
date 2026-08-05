@@ -157,6 +157,8 @@ def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
                         continue
                     name = block.get("name")
                     tool_input = block.get("input") or {}
+                    if not isinstance(tool_input, dict):
+                        continue
                     if name == "WebSearch":
                         query = tool_input.get("query", "")
                         domains = tool_input.get("allowed_domains") or tool_input.get("blocked_domains")
@@ -443,25 +445,16 @@ its existing table format (see the file for the convention).
 Report at the end: which candidates you addressed, which you skipped and why, and
 confirm regress.py's final pass/fail."""
 
-        allowed_tools = config.CLAUDE_ALLOWED_TOOLS
-        cmd = [config.CLAUDE_BIN, "-p", prompt,
-               "--output-format", "json",
-               "--permission-mode", config.CLAUDE_PERMISSION_MODE,
-               "--allowedTools", allowed_tools,
-               "--add-dir", str(source_workspace / ".study-notes")]
-        if getattr(config, 'CLAUDE_MODEL', ''):
-            cmd += ["--model", config.CLAUDE_MODEL]
-
         logger.info(f"Invoking claude CLI for autonomous skill improvement "
                     f"({len(candidates)} candidate(s), cwd={workspace}) ...")
-        try:
-            proc = subprocess.run(cmd, cwd=str(workspace), env=build_claude_env(),
-                                   capture_output=True, text=True,
-                                   timeout=config.AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            return {"applied": False, "reason": "claude CLI call timed out"}
-        except Exception as e:
-            return {"applied": False, "reason": f"launch failure: {e}"}
+        result = run_claude_cli(
+            target_dir=source_workspace / ".study-notes",
+            prompt=prompt,
+            workspace_override=workspace,
+            timeout_seconds=config.AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS
+        )
+        if not result["ok"]:
+            return {"applied": False, "reason": result.get("error", "cli call failed")}
 
         # TRUTH-CHECK: re-run regress.py OURSELVES against skill_copy,
         # regardless of what the session's own JSON envelope or final text
@@ -485,9 +478,9 @@ confirm regress.py's final pass/fail."""
         sync_skill_package()
         sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)
         logger.info(f"Autonomous skill improvement applied and verified via regress.py "
-                    f"(claude CLI returncode={proc.returncode}); "
+                    f"(claude CLI returncode={result['returncode']}); "
                     f"templates/study-notes.skill updated and re-synced.")
-        return {"applied": True, "reason": "regress.py passed", "session_result": proc.stdout[-2000:]}
+        return {"applied": True, "reason": "regress.py passed", "session_result": result["raw_stdout"][-2000:]}
     except Exception as e:
         logger.exception(f"Unexpected error during autonomous skill improvement: {e}")
         return {"applied": False, "reason": f"unexpected error: {e}"}
@@ -551,7 +544,7 @@ Save the final .docx to exactly this path: {expected_docx}
 Make reasonable assumptions where inputs are ambiguous and proceed to completion."""
 
 
-def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None) -> dict:
+def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None, workspace_override: Path = None, timeout_seconds: int = None) -> dict:
     """Make ONE `claude -p ...` subprocess call for this chapter and return
     a plain result dict: {"ok", "result", "session_id", "total_cost_usd",
     "error", "returncode", "raw_stdout"}.
@@ -572,7 +565,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
     expected envelope isn't found.
     """
     dev_mode = getattr(config, 'DEV_TOKEN_SAVER_MODE', False)
-    workspace = _chapter_workspace(target_dir)
+    workspace = workspace_override if workspace_override else _chapter_workspace(target_dir)
     # DEV_TOKEN_SAVER_MODE gets NO tool access at all (empty --allowedTools),
     # not just a cheap prompt -- --max-budget-usd only stops the run AFTER
     # it's exceeded, not before, and a full agentic session with the real
@@ -652,7 +645,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
                 "error": f"launch failure: {e}", "returncode": None, "raw_stdout": ""}
 
     start = time.monotonic()
-    deadline = start + config.CLAUDE_CLI_TIMEOUT_SECONDS
+    deadline = start + (timeout_seconds or config.CLAUDE_CLI_TIMEOUT_SECONDS)
     heartbeat_seconds = max(1, getattr(config, 'CLAUDE_CLI_HEARTBEAT_SECONDS', 120))
     last_heartbeat_msg = None
     stdout_data = stderr_data = None
@@ -683,7 +676,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None)
             proc.communicate(timeout=10)
         except Exception:
             pass
-        logger.error(f"claude CLI call timed out after {config.CLAUDE_CLI_TIMEOUT_SECONDS}s.")
+        logger.error(f"claude CLI call timed out after {timeout_seconds or config.CLAUDE_CLI_TIMEOUT_SECONDS}s.")
         return {"ok": False, "result": None, "session_id": None, "total_cost_usd": None,
                 "error": "timeout", "returncode": None, "raw_stdout": ""}
 
