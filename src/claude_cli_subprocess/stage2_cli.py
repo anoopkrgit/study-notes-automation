@@ -37,6 +37,7 @@ import subprocess
 import sys
 import time
 import zipfile
+import fcntl
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -336,13 +337,30 @@ def sync_skill_package(install_dir: Path = None) -> Path:
             pass  # fall through and re-extract if the stamp is unreadable
 
     logger.info(f"Syncing skill package {source} -> {install_dir} ...")
-    if install_dir.exists():
-        shutil.rmtree(install_dir)
-    install_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(source, "r") as zf:
-        zf.extractall(install_dir)
-    marker_file.write_text(stamp, encoding="utf-8")
-    logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
+    lock_file = install_dir.parent / f"{install_dir.name}.lock"
+    install_dir.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            # Re-check inside the lock in case another process just synced it
+            if install_dir.exists() and marker_file.exists():
+                try:
+                    if marker_file.read_text(encoding="utf-8").strip() == stamp:
+                        logger.info(f"Skill package unchanged ({source.name}); skipping re-extract (checked after lock).")
+                        return install_dir
+                except Exception:
+                    pass
+
+            if install_dir.exists():
+                shutil.rmtree(install_dir)
+            install_dir.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(source, "r") as zf:
+                zf.extractall(install_dir)
+            marker_file.write_text(stamp, encoding="utf-8")
+            logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
+    
     return install_dir
 
 
