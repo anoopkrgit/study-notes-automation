@@ -56,7 +56,7 @@ def _latest_session_transcript(workspace: Path) -> Path:
     write_web_sources_manifest(), verify_resolved_skill()) so this lookup
     lives in exactly one place. Returns None if no transcript exists yet.
     """
-    project_dir = Path.home() / ".claude" / "projects" / str(workspace).replace("/", "-")
+    project_dir = Path.home() / ".claude" / "projects" / str(workspace.resolve().absolute()).replace("/", "-")
     candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
     return candidates[0] if candidates else None
 
