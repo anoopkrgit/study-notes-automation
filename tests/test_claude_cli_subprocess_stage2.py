@@ -714,18 +714,34 @@ def _make_fake_skill_zip(path: Path):
         zf.writestr("tools/regress.py", "# placeholder, never actually executed in tests\n")
     return path
 
-def _fake_subprocess_run(claude_returncode=0, regress_returncode=0, regress_stdout="PASS"):
+def _fake_subprocess_run(regress_returncode=0, regress_stdout="PASS"):
+    """apply_retro_fixes() only reaches plain subprocess.run() for the npm
+    install (docx) and regress.py steps now -- the claude CLI call itself
+    goes through run_claude_cli() (subprocess.Popen), mocked separately via
+    _popen_simulating_skill_edit() below."""
     def _run(cmd, **kwargs):
         result = MagicMock()
         if any("regress.py" in str(c) for c in cmd):
             result.returncode = regress_returncode
             result.stdout = regress_stdout
         else:
-            result.returncode = claude_returncode
-            result.stdout = '{"result": "done"}'
+            result.returncode = 0
+            result.stdout = ""
         result.stderr = ""
         return result
     return _run
+
+def _popen_simulating_skill_edit(skill_copy, returncode=0, stdout='{"result": "done"}'):
+    """Stand-in for subprocess.Popen matching run_claude_cli()'s actual
+    mechanism (see _mock_popen above), with the side effect of touching a
+    file in skill_copy -- simulating a session that actually edited the
+    skill, which apply_retro_fixes() now requires (mtime-modified check)
+    before it will even look at regress.py's result."""
+    def _popen(cmd, **kwargs):
+        if skill_copy.exists():
+            (skill_copy / "SKILL.md").write_text("# fake skill (edited)\n", encoding="utf-8")
+        return _mock_popen(returncode=returncode, stdout=stdout, stderr="")
+    return _popen
 
 @pytest.fixture
 def skill_improvement_dirs(monkeypatch, tmp_path):
@@ -763,8 +779,10 @@ def test_repackage_skill_dir_round_trips(tmp_path):
 def test_apply_retro_fixes_applies_and_resyncs_when_regress_passes(skill_improvement_dirs):
     d = skill_improvement_dirs
     candidates = [{"issue": "label collisions", "observed": 5, "change": "bigger canvas"}]
+    skill_copy = d["tmp_path"] / "improve_ws" / "skill_copy"
 
-    with patch("subprocess.run", side_effect=_fake_subprocess_run(regress_returncode=0)):
+    with patch('subprocess.Popen', side_effect=_popen_simulating_skill_edit(skill_copy)), \
+         patch("subprocess.run", side_effect=_fake_subprocess_run(regress_returncode=0)):
         result = apply_retro_fixes(candidates, d["source_workspace"])
 
     assert result["applied"] is True
@@ -775,8 +793,10 @@ def test_apply_retro_fixes_discards_change_when_regress_fails(skill_improvement_
     d = skill_improvement_dirs
     original_bytes = d["skill_file"].read_bytes()
     candidates = [{"issue": "label collisions", "observed": 5, "change": "bigger canvas"}]
+    skill_copy = d["tmp_path"] / "improve_ws" / "skill_copy"
 
-    with patch("subprocess.run", side_effect=_fake_subprocess_run(
+    with patch('subprocess.Popen', side_effect=_popen_simulating_skill_edit(skill_copy)), \
+         patch("subprocess.run", side_effect=_fake_subprocess_run(
             regress_returncode=1, regress_stdout="REGRESSION FAILED: words")):
         result = apply_retro_fixes(candidates, d["source_workspace"])
 
@@ -788,6 +808,24 @@ def test_apply_retro_fixes_discards_change_when_regress_fails(skill_improvement_
     assert not (d["tmp_path"] / "install_local").exists()
     assert not (d["tmp_path"] / "install_global").exists()
 
+def test_apply_retro_fixes_reports_no_change_when_session_edits_nothing(skill_improvement_dirs):
+    """New regression test for the mtime-modification check added in
+    8d088ed: a session that returns ok=True but never actually touched the
+    skill copy (e.g. decided every candidate was a false positive) must not
+    be reported as applied, and must never reach/trust regress.py at all."""
+    d = skill_improvement_dirs
+    candidates = [{"issue": "label collisions", "observed": 5, "change": "bigger canvas"}]
+
+    with patch('subprocess.Popen') as mock_popen, \
+         patch("subprocess.run", side_effect=_fake_subprocess_run(regress_returncode=0)) as mock_run:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"result": "done"}', stderr="")
+        result = apply_retro_fixes(candidates, d["source_workspace"])
+
+    assert result["applied"] is False
+    assert "without modifying" in result["reason"]
+    # returned before ever reaching the npm-install/regress.py truth-check
+    mock_run.assert_not_called()
+
 def test_apply_retro_fixes_no_source_skill_found(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "LOCAL_RUNTIME_ROOT", tmp_path)
     monkeypatch.setattr(config, "CLAUDE_SKILL_SOURCE_GLOB", "templates/*.skill")
@@ -797,15 +835,20 @@ def test_apply_retro_fixes_no_source_skill_found(monkeypatch, tmp_path):
     assert result["applied"] is False
     assert "no templates" in result["reason"]
 
-def test_apply_retro_fixes_handles_claude_cli_timeout(skill_improvement_dirs):
+def test_apply_retro_fixes_handles_claude_cli_timeout(monkeypatch, skill_improvement_dirs):
     d = skill_improvement_dirs
     original_bytes = d["skill_file"].read_bytes()
+    # Force run_claude_cli()'s deadline to already be in the past on its
+    # first loop check, so this exercises the real timeout path (proc.kill()
+    # + "timeout" error) without actually waiting out a real deadline.
+    monkeypatch.setattr(config, "AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS", -1)
 
-    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=1)):
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = MagicMock()
         result = apply_retro_fixes([{"issue": "x", "observed": 1, "change": "y"}], d["source_workspace"])
 
     assert result["applied"] is False
-    assert "timed out" in result["reason"]
+    assert "timeout" in result["reason"]
     assert d["skill_file"].read_bytes() == original_bytes
 
 def test_run_stage2_chapter_attempts_auto_apply_when_enabled(monkeypatch, mock_dirs):
