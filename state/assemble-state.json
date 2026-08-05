@@ -1405,6 +1405,16 @@
       "kind": "review",
       "route": "review (llm-haiku)",
       "ts": "2026-08-01T01:55:31"
+    },
+    "bccf2cb3a178af55f5b92faad5f86cd0eb156fe9be09b61bcb204296f8a51fef": {
+      "src": "/mnt/g/My Drive/000-Education/00-Avyaan/Telegram-A27-Download/26-07-31_Phy_Ch-5_Optics_FA27-Lec7-Page-1-[1785510730898].pdf",
+      "name": "26-07-31_Phy_Ch-5_Optics_FA27-Lec7-Page-1-[1785510730898].pdf",
+      "kind": "transcript",
+      "targets": [
+        "Physics-Ch5-Optics/transcripts"
+      ],
+      "route": "spine (llm-haiku-confirmed, conf 0.95)",
+      "ts": "2026-08-02T14:04:38"
     }
   }
 }

@@ -48,6 +48,8 @@ HOLD = "_hold"
 MARKER = "_notes_done"
 FAILMARK = "_notes_FAILED.txt"
 SOURCES = "_sources.txt"
+WEB_SOURCES = "_web-sources.txt"
+RETRO_FINDINGS = "_retro-findings.txt"
 NEWMAT = "_new-material.txt"
 SUP_DIR = "supporting"
 TRANSCRIPTS_DIR = "transcripts"
@@ -125,7 +127,11 @@ DEV_TOKEN_SAVER_EFFORT = os.environ.get("DEV_TOKEN_SAVER_EFFORT", "low")
 # Additive only -- GENERATOR_MODEL/MAX_TURNS/MAX_ATTEMPTS above stay
 # untouched; those belong to direct_api/ and agents/, not this module.
 # ---------------------------------------------------------------------------
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "")  # unset by default; when set, passed as --model
+CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-5")  # pinned rather than left
+    # unset: an unset value means run_claude_cli() never passes --model at all, so the
+    # `claude` CLI's own current default silently decides -- confirmed live that was
+    # claude-sonnet-5, which is what's pinned here now (no behavior change today), so
+    # future runs can't silently change model if that CLI-side default ever drifts.
 CLAUDE_EFFORT = os.environ.get("CLAUDE_EFFORT", "")  # unset by default; when set (low/medium/high/xhigh/max),
                                                        # passed as --effort on LIVE (non-dev-mode) calls only --
                                                        # dev-mode's own DEV_TOKEN_SAVER_EFFORT above is separate
@@ -142,4 +148,51 @@ CLAUDE_CLI_HEARTBEAT_SECONDS = int(os.environ.get("CLAUDE_CLI_HEARTBEAT_SECONDS"
 CLAUDE_RETRY_EPOCH_DEFAULT_SECONDS = int(os.environ.get("CLAUDE_RETRY_EPOCH_DEFAULT_SECONDS", str(5 * 3600)))
 CLAUDE_SKILL_SOURCE_GLOB = os.environ.get("CLAUDE_SKILL_SOURCE_GLOB", "templates/*.skill")
 CLAUDE_SKILL_INSTALL_DIR = LOCAL_RUNTIME_ROOT / ".claude" / "skills" / "study-notes"
+# Global (user-level) install target, IN ADDITION TO the project-local one above, not
+# instead of it. Belt-and-suspenders: project-local skill discovery via cwd walk-up
+# (from run_claude_cli()'s nested generation-workspace/<chapter> cwd) was flagged as an
+# unverified pilot item in docs/cli-subprocess-plan.md and confirmed NOT reliable on the
+# first live run -- root-caused to this repo's .claude/ being gitignored, which likely
+# makes it invisible to Claude Code's directory-walk skill discovery. Without an exact
+# "study-notes" match anywhere visible, /study-notes silently fuzzy-matched a stale
+# global skill instead (see sync_skill_package()'s docstring). Both locations are now
+# kept in lockstep on every run so neither can ever go stale relative to
+# templates/study-notes.skill, and global alone is enough for discovery regardless of
+# cwd since personal-scope skills are always scanned.
+CLAUDE_SKILL_GLOBAL_INSTALL_DIR = Path.home() / ".claude" / "skills" / "study-notes"
 CLAUDE_WORKSPACE_ROOT = LOCAL_RUNTIME_ROOT / "generation-workspace"  # per-chapter scratch subfolders
+
+# ---------------------------------------------------------------------------
+# Bounded web enrichment for Stage 2 (docs/web-enrichment-plan.md). Opt-in
+# and off by default until validated against real --live runs. Only wired
+# into src/claude_cli_subprocess/stage2_cli.py -- see the plan doc for why
+# the guardrail mechanism (WebFetch domain-scoped permission rules +
+# CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION) is CLI-specific and doesn't
+# carry over to src/direct_api/ or src/agents/ as-is.
+# ---------------------------------------------------------------------------
+ENABLE_WEB_ENRICHMENT = os.environ.get("ENABLE_WEB_ENRICHMENT", "0") == "1"
+WEB_SEARCH_ALLOWED_DOMAINS = [
+    "ncert.nic.in",
+    "hyperphysics.phy-astr.gsu.edu",
+    "chem.libretexts.org",
+    "khanacademy.org",
+    "byjus.com",
+]
+MAX_WEB_SEARCHES_PER_CHAPTER = int(os.environ.get("MAX_WEB_SEARCHES_PER_CHAPTER", "3"))
+
+# ---------------------------------------------------------------------------
+# Automatic skill self-improvement (src/claude_cli_subprocess/stage2_cli.py's
+# apply_retro_fixes()). Opt-in, off by default -- same rollout posture as
+# ENABLE_WEB_ENRICHMENT above: real cost/risk (a second claude -p session per
+# chapter that has retro candidates, autonomously editing the shared skill),
+# so it doesn't start silently just because this config module got updated.
+# Explicitly authorized to skip human approval (git history is the safety
+# net) -- but tools/regress.py is still the automated accept/reject gate,
+# independently re-run by OUR OWN code after the session claims success,
+# never just trusted (this module's TRUTH-CHECK, NOT SELF-REPORTED SUCCESS
+# rule applies here too). A failed gate discards the attempt; nothing about
+# templates/study-notes.skill changes.
+# ---------------------------------------------------------------------------
+ENABLE_AUTO_SKILL_IMPROVEMENT = os.environ.get("ENABLE_AUTO_SKILL_IMPROVEMENT", "0") == "1"
+AUTO_SKILL_IMPROVEMENT_WORKSPACE = LOCAL_RUNTIME_ROOT / "generation-workspace" / "_skill_improvement"
+AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS = int(os.environ.get("AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS", "1800"))

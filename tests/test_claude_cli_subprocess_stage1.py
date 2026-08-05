@@ -19,6 +19,21 @@ def test_build_claude_env_pops_anthropic_api_key(monkeypatch):
     env = build_claude_env()
     assert "ANTHROPIC_API_KEY" not in env
 
+def test_build_claude_env_merges_extra_env_after_popping_api_key(monkeypatch):
+    """extra_env (used by stage2_cli.py's web-enrichment wiring to set
+    CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION) must be applied, and applied
+    AFTER the ANTHROPIC_API_KEY pop -- an extra_env entry should never be
+    able to resurrect that key even by accident."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "secret")
+    env = build_claude_env(extra_env={"CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION": "3"})
+    assert env["CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION"] == "3"
+    assert "ANTHROPIC_API_KEY" not in env
+
+def test_build_claude_env_extra_env_none_is_a_noop(monkeypatch):
+    monkeypatch.setenv("SOME_VAR", "keep-me")
+    env = build_claude_env(extra_env=None)
+    assert env["SOME_VAR"] == "keep-me"
+
 def test_run_router_success():
     with patch('subprocess.run') as mock_run:
         mock_result = MagicMock()
