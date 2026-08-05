@@ -57,11 +57,17 @@ from typing import Literal
 from langgraph.graph import StateGraph, END
 
 import settings as config
+import time
+import shutil
+import zipfile
+import sys
+import subprocess
 from src.func_tools_and_utils import (
     logger, TokenTracker, write_retry_epoch,
     EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL,
     is_ignorable
 )
+from src.claude_cli_subprocess.stage2_cli import run_claude_cli, sync_skill_package
 from src.agents.base import Stage2State, make_agent_node, get_checkpointer
 from src.agents.prompts import (
     author_system_prompt, figure_system_prompt, compiler_system_prompt,
@@ -72,7 +78,8 @@ from src.agents.tools import (
     tool_write_content_json, tool_write_figures_json, tool_read_qa_feedback,
     tool_figbuild, tool_view_figure, tool_compile_docx,
     tool_run_structural_gates, tool_run_quality_gates, tool_run_document_qa,
-    AUTHOR_TOOLS, FIGURE_TOOLS, COMPILER_TOOLS, TOOL_REGISTRY
+    AUTHOR_TOOLS, FIGURE_TOOLS, COMPILER_TOOLS, TOOL_REGISTRY,
+    WEB_ENRICHMENT_TOOLS
 )
 
 def ingest_node(state: Stage2State) -> dict:
@@ -115,10 +122,14 @@ def ingest_node(state: Stage2State) -> dict:
 # expensive model (config.GENERATOR_MODEL) -- writing the actual chapter
 # content is the one genuinely creative, open-ended step in this
 # flowchart, so it needs the most room and the most capable model.
+author_tools_list = list(AUTHOR_TOOLS)
+if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+    author_tools_list.extend(WEB_ENRICHMENT_TOOLS)
+
 author_node = make_agent_node(
     node_name='author',
     model_name=getattr(config, 'AUTHOR_MODEL', config.GENERATOR_MODEL),
-    tools_for_anthropic=AUTHOR_TOOLS,
+    tools_for_anthropic=author_tools_list,
     system_prompt_fn=author_system_prompt,
     max_agent_turns=25,
     tool_registry=TOOL_REGISTRY
@@ -317,6 +328,178 @@ def build_stage2_graph():
     })
     return graph
 
+# -----------------------------------------------------------------------------
+# RETRO / WEB ENRICHMENT HELPERS
+# -----------------------------------------------------------------------------
+
+def write_web_sources_manifest(target_dir: Path, web_sources: list[str]) -> None:
+    if not web_sources:
+        return
+    try:
+        lines = ["Web enrichment audit trail (docs/web-enrichment-plan.md).",
+                 "Built from the actual agent graph tool executions, not self-reported.",
+                 "", f"Pages fetched ({len(web_sources)}):"]
+        lines += [f"  - {u}" for u in web_sources] or ["  (none)"]
+        (target_dir / config.WEB_SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info(f"Wrote {config.WEB_SOURCES} ({len(web_sources)} fetch(es)).")
+    except Exception as e:
+        logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
+
+def capture_retro_findings(target_dir: Path, qa_pass_count: int) -> dict:
+    """Synthesize retro candidates by reading qa_report.json if the graph
+    needed multiple retries to pass QA. This mimics tools/retro.py for the
+    agents architecture since it lacks a run.jsonl transcript."""
+    try:
+        report_path = target_dir / "qa_report.json"
+        if not report_path.exists() or qa_pass_count <= 1:
+            return {"ok": True, "candidates": [], "log_records": 0}
+            
+        report = json.loads(report_path.read_text("utf-8"))
+        failures = report.get("failures", [])
+        if not failures:
+            return {"ok": True, "candidates": [], "log_records": 0}
+            
+        # Synthesize a candidate for every failure in the final QA report
+        candidates = []
+        for i, failure in enumerate(failures):
+            candidates.append({
+                "issue": f"QA Failure: {failure}",
+                "observed": qa_pass_count,
+                "change": "Update the agent prompt, author tools schema, or system constraints to ensure this requirement is met."
+            })
+            
+        if candidates:
+            lines = [
+                f"Skill-improvement candidates synthesized from agents qa_report.json.",
+                "Captured automatically -- NOT applied. This run was unattended.",
+                "",
+            ]
+            for i, c in enumerate(candidates, 1):
+                lines.append(f"{i}. {c.get('issue')} (observed {c.get('observed')}x)")
+                lines.append(f"   {c.get('change')}")
+                lines.append("")
+            (target_dir / config.RETRO_FINDINGS).write_text("\n".join(lines), encoding="utf-8")
+            
+        return {"ok": True, "candidates": candidates, "log_records": len(failures)}
+    except Exception as e:
+        logger.warning(f"Failed to capture retro findings: {e}")
+        return {"ok": False, "candidates": [], "log_records": 0}
+
+def _repackage_skill_dir(skill_dir: Path, out_skill_file: Path) -> None:
+    """Zip skill_dir's contents back into out_skill_file (overwriting it)."""
+    with zipfile.ZipFile(out_skill_file, "w") as zf:
+        for path in sorted(skill_dir.rglob("*")):
+            rel_parts = path.relative_to(skill_dir).parts
+            if any(p in {".git", "__pycache__", "node_modules"} for p in rel_parts):
+                continue
+            arcname = path.relative_to(skill_dir).as_posix()
+            if path.is_dir():
+                zf.writestr(arcname + "/", b"")
+            else:
+                zf.write(path, arcname, compress_type=zipfile.ZIP_DEFLATED)
+
+def apply_retro_fixes(candidates: list, target_dir: Path) -> dict:
+    """Autonomously apply synthesized candidate skill improvements."""
+    workspace = config.AUTO_SKILL_IMPROVEMENT_WORKSPACE
+    workspace.mkdir(parents=True, exist_ok=True)
+    skill_copy = workspace / "skill_copy"
+
+    try:
+        source_skill = sorted(
+            config.LOCAL_RUNTIME_ROOT.glob(config.CLAUDE_SKILL_SOURCE_GLOB),
+            key=lambda p: p.stat().st_mtime, reverse=True,
+        )
+        if not source_skill:
+            return {"applied": False, "reason": "no templates/*.skill source found"}
+            
+        if skill_copy.exists():
+            shutil.rmtree(skill_copy)
+        sync_skill_package(skill_copy)
+
+        candidate_lines = "\n".join(
+            f"{i}. {c.get('issue')} (observed {c.get('observed')}x): {c.get('change')}"
+            for i, c in enumerate(candidates, 1)
+        )
+        prompt = f"""Fully unattended -- do not pause for confirmation and do not ask any questions.
+
+We found these candidate skill improvements from a real agent generation run that failed QA:
+
+{candidate_lines}
+
+Skill copy to edit (a scratch copy -- never edit anything outside this path):
+  {skill_copy}
+
+Raw evidence for these candidates is the QA report at:
+  {target_dir / "qa_report.json"}
+
+For EACH candidate: read the raw evidence behind it before deciding on a fix. 
+Make the smallest change that addresses what the evidence actually shows. 
+
+Before finishing, from cwd {workspace} (node_modules must be installed here first --
+`npm install --silent --no-audit --no-fund docx@9.7.1` if not already present), run:
+  python3 {skill_copy}/tools/regress.py
+It must exit 0 (PASS). If it doesn't, revert whichever change caused the failure and
+either try a smaller fix or skip that candidate.
+
+For every change you keep, add a one-line entry to {skill_copy}/LESSONS.md following
+its existing table format.
+
+Report at the end: which candidates you addressed, which you skipped and why, and
+confirm regress.py's final pass/fail."""
+
+        start_time = time.time()
+        logger.info(f"Invoking claude CLI for autonomous skill improvement "
+                    f"({len(candidates)} candidate(s), cwd={workspace}) ...")
+        
+        # We need a scratch workspace for the CLI call
+        cli_ws = config.CLAUDE_WORKSPACE_ROOT / target_dir.name
+        cli_ws.mkdir(parents=True, exist_ok=True)
+        
+        result = run_claude_cli(
+            target_dir=cli_ws,
+            prompt=prompt,
+            workspace_override=workspace,
+            timeout_seconds=getattr(config, 'AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS', 180)
+        )
+        if not result["ok"]:
+            return {"applied": False, "reason": result.get("error", "cli call failed")}
+
+        modified = any(p.stat().st_mtime > start_time for p in skill_copy.rglob("*") if p.is_file())
+        if not modified:
+            return {"applied": False, "reason": "session exited without modifying the skill"}
+
+        try:
+            if not (workspace / "node_modules" / "docx").exists():
+                subprocess.run(["npm", "install", "docx"], cwd=str(workspace), capture_output=True)
+            regress = subprocess.run(
+                [sys.executable, str(skill_copy / "tools" / "regress.py")],
+                cwd=str(workspace), capture_output=True, text=True, timeout=120,
+            )
+        except Exception as e:
+            return {"applied": False, "reason": f"regress.py could not be run: {e}"}
+
+        if regress.returncode != 0:
+            logger.warning(f"Autonomous skill improvement attempt did NOT pass "
+                            f"regress.py (exit {regress.returncode}); discarding.")
+            return {"applied": False, "reason": "regress.py failed", "regress_output": regress.stdout[-2000:]}
+
+        _repackage_skill_dir(skill_copy, source_skill[0])
+        try:
+            sync_skill_package()
+            sync_skill_package(getattr(config, 'CLAUDE_SKILL_GLOBAL_INSTALL_DIR', Path.home() / ".claude/skills/study-notes"))
+            logger.info("Autonomous skill improvement applied and verified via regress.py.")
+            return {"applied": True, "reason": "regress.py passed"}
+        except Exception as e:
+            logger.warning(f"Skill was updated in templates/ but sync failed: {e}")
+            return {"applied": True, "reason": f"applied but sync incomplete: {e}"}
+    except Exception as e:
+        logger.exception(f"Unexpected error during autonomous skill improvement: {e}")
+        return {"applied": False, "reason": f"unexpected error: {e}"}
+
+# -----------------------------------------------------------------------------
+# GRAPH RUNNER
+# -----------------------------------------------------------------------------
+
 def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int:
     """THE single entry point other code calls to run Stage 2's entire
     flowchart for one chapter, from start to finish, and get back a plain
@@ -417,6 +600,16 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
         with get_checkpointer(chapter_dir_str) as checkpointer:
             compiled = graph.compile(checkpointer=checkpointer)
             final_state = compiled.invoke(initial_state, config=thread_config)
+            
+            target_dir = Path(chapter_dir)
+            
+            if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+                write_web_sources_manifest(target_dir, final_state.get('web_sources', []))
+            
+            retro = capture_retro_findings(target_dir, final_state.get('qa_pass_count', 0))
+            if retro["ok"] and retro["candidates"] and getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
+                apply_retro_fixes(retro["candidates"], target_dir)
+                
     except Exception as e:
         # Something broke outside any individual node's own error handling
         # (e.g. the checkpoint database itself couldn't be opened) --

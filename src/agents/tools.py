@@ -61,6 +61,48 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 
 import settings as config
+import urllib.request
+import urllib.parse
+from html.parser import HTMLParser
+
+try:
+    from ddgs import DDGS
+except ImportError:
+    # We will assume it's installed or provided, but fallback gracefully if missing
+    DDGS = None
+
+# A very basic HTML to text parser for tool_web_fetch
+class SimpleHTMLToText(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.text_parts = []
+        self.in_body = False
+        self.ignore_tags = {'script', 'style', 'head', 'meta', 'link'}
+        self.current_ignore = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'body':
+            self.in_body = True
+        if tag in self.ignore_tags:
+            self.current_ignore += 1
+        if tag in {'p', 'br', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'}:
+            self.text_parts.append('\n')
+
+    def handle_endtag(self, tag):
+        if tag in self.ignore_tags and self.current_ignore > 0:
+            self.current_ignore -= 1
+        if tag == 'body':
+            self.in_body = False
+
+    def handle_data(self, data):
+        if self.in_body and self.current_ignore == 0:
+            cleaned = data.strip()
+            if cleaned:
+                self.text_parts.append(cleaned + " ")
+
+    def get_text(self):
+        return "".join(self.text_parts).strip()
+
 from src.func_tools_and_utils import (
     logger,
     tool_view_pdf_page,
@@ -273,6 +315,82 @@ def tool_read_qa_feedback(chapter_dir: str) -> dict:
         except Exception:
             pass
     return {}
+
+
+def tool_web_search(query: str, allowed_domains: list[str], chapter_dir: str) -> str:
+    """
+    Search the web for a query, constrained to allowed domains.
+    Returns a list of URLs and snippets.
+    """
+    if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
+        logger.info(f"[tool_web_search] DEV MODE mock search for: {query}")
+        return json.dumps([{"url": "https://en.wikipedia.org/wiki/Mock", "title": "Mock", "snippet": "Mock search result."}])
+
+    if not DDGS:
+        return json.dumps({"error": "ddgs library not installed. Web search unavailable."})
+
+    # Only 5 allowed domains in the system
+    global_allowed = {"en.wikipedia.org", "simple.wikipedia.org", "khanacademy.org", "byjus.com", "britannica.com"}
+    
+    # Enforce allowed domains
+    validated_domains = []
+    for d in allowed_domains:
+        if any(d == gd or d.endswith("." + gd) for gd in global_allowed):
+            validated_domains.append(d)
+    
+    if not validated_domains:
+        return json.dumps({"error": f"None of the requested domains are in the global whitelist: {global_allowed}"})
+        
+    site_query = " OR ".join([f"site:{d}" for d in validated_domains])
+    full_query = f"{query} ({site_query})"
+    
+    logger.info(f"[tool_web_search] Searching: {full_query}")
+    try:
+        results = DDGS().text(full_query, max_results=5)
+        # DuckDuckGo sometimes returns empty lists if no results
+        if not results:
+            return json.dumps([])
+        return json.dumps([{"url": r.get('href'), "title": r.get('title'), "snippet": r.get('body')} for r in results])
+    except Exception as e:
+        logger.error(f"[tool_web_search] Error: {e}")
+        return json.dumps({"error": f"Search failed: {str(e)}"})
+
+def tool_web_fetch(url: str, chapter_dir: str) -> str:
+    """
+    Fetch and return the readable text content of a URL.
+    """
+    if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
+        logger.info(f"[tool_web_fetch] DEV MODE mock fetch for: {url}")
+        return "Mock content for web fetch."
+
+    # Validate domain
+    parsed = urllib.parse.urlparse(url)
+    domain = parsed.netloc
+    global_allowed = {"en.wikipedia.org", "simple.wikipedia.org", "khanacademy.org", "byjus.com", "britannica.com"}
+    
+    if not any(domain == gd or domain.endswith("." + gd) for gd in global_allowed):
+        return json.dumps({"error": f"Domain {domain} is not in the global whitelist: {global_allowed}"})
+
+    logger.info(f"[tool_web_fetch] Fetching: {url}")
+    try:
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            html = response.read().decode('utf-8', errors='ignore')
+            parser = SimpleHTMLToText()
+            parser.feed(html)
+            text = parser.get_text()
+            
+            # Cap the length to avoid blowing up the context window
+            max_len = 15000
+            if len(text) > max_len:
+                text = text[:max_len] + "\n\n...[CONTENT TRUNCATED]..."
+            return text
+    except Exception as e:
+        logger.error(f"[tool_web_fetch] Error fetching {url}: {e}")
+        return json.dumps({"error": f"Fetch failed: {str(e)}"})
 
 
 # -----------------------------------------------------------------------------
@@ -607,6 +725,38 @@ COMPILER_TOOLS = [
     }
 ]
 
+WEB_ENRICHMENT_TOOLS = [
+    {
+        "name": "tool_web_search",
+        "description": "Search the web for educational material. You MUST pass at least one allowed domain.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The search query"},
+                "allowed_domains": {
+                    "type": "array", 
+                    "items": {"type": "string"}, 
+                    "description": "List of domains to restrict the search to. Allowed: en.wikipedia.org, simple.wikipedia.org, khanacademy.org, byjus.com, britannica.com"
+                },
+                "chapter_dir": {"type": "string", "description": "The current chapter directory"}
+            },
+            "required": ["query", "allowed_domains", "chapter_dir"]
+        }
+    },
+    {
+        "name": "tool_web_fetch",
+        "description": "Fetch the readable text content of a specific URL returned by tool_web_search.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The URL to fetch (must be from the allowed domains)"},
+                "chapter_dir": {"type": "string", "description": "The current chapter directory"}
+            },
+            "required": ["url", "chapter_dir"]
+        }
+    }
+]
+
 
 # -----------------------------------------------------------------------------
 # Tool Registry
@@ -631,4 +781,6 @@ TOOL_REGISTRY = {
     'tool_figbuild': tool_figbuild,
     'tool_view_figure': tool_view_figure,
     'tool_compile_docx': tool_compile_docx,
+    'tool_web_search': tool_web_search,
+    'tool_web_fetch': tool_web_fetch,
 }
