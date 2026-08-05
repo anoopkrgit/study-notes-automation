@@ -74,6 +74,12 @@ from src.func_tools_and_utils import (
     tool_convert_to_png, tool_view_image, tool_view_pdf_page, _text_block,
     TokenTracker, EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 )
+# Bounded web enrichment + autonomous retro, shared with src/agents and
+# (for retro) src/claude_cli_subprocess -- see src/common/. Same capabilities
+# PR #5/#7 added to the other two Stage 2 generators, ported here for parity.
+from src.common.web_enrichment import web_search, web_fetch, write_web_sources_manifest
+from src.common.skill_retro import capture_retro_findings, apply_retro_fixes
+from src.claude_cli_subprocess.stage2_cli import sync_skill_package, _chapter_workspace
 
 try:
     import anthropic
@@ -144,8 +150,20 @@ def build_user_prompt(target_dir: Path, top_transcripts: list, sup_files: list, 
     pipeline's prompt explained the folder to the model on every run."""
     transcript_lines = "\n".join(f"  - {f.name}" for f in top_transcripts) or "  (none found)"
     supporting_lines = "\n".join(f"  - {f.name}" for f in sup_files) or "  (none)"
+    # Bounded web enrichment (off unless config.ENABLE_WEB_ENRICHMENT) -- same
+    # intent as the paragraph author_system_prompt() adds in src/agents. The
+    # hard domain/budget limits are enforced in Python regardless of this text.
+    web_note = ""
+    if getattr(config, "ENABLE_WEB_ENRICHMENT", False):
+        web_note = (
+            "\nYou MAY use tool_web_search and tool_web_fetch to gather additional context, "
+            "definitions, or reference material from the allowed domains only. Use this "
+            "sparingly and strictly to enrich (never to expand scope beyond the transcripts). "
+            "Do not fetch unnecessary pages.\n"
+        )
     return f"""You are running fully unattended. Use the study-notes skill (given to you as
 your system prompt) to generate ONE chapter's study notes.
+{web_note}
 
 The input materials for this chapter are in this folder:
   {target_dir}
@@ -267,6 +285,42 @@ AGENT_TOOLS = [
     },
 ]
 
+# WEB_TOOLS is the OPTIONAL bounded-web-enrichment menu, appended to
+# AGENT_TOOLS in run_generate() only when config.ENABLE_WEB_ENRICHMENT is on
+# (off by default). Same capability the agents/ and subprocess/ generators
+# have; the actual behavior lives in src/common/web_enrichment.py. Unlike the
+# agents variant, these schemas take no chapter_dir (this loop doesn't inject
+# one). Domain whitelisting and the per-chapter budget are enforced in Python
+# (execute_tool / run_generate's loop), not trusted to the model.
+WEB_TOOLS = [
+    {
+        "name": "tool_web_search",
+        "description": (
+            "Search the web for educational reference material, restricted to a whitelist of "
+            "trusted domains. You MUST pass at least one allowed domain. Allowed: "
+            + ", ".join(config.WEB_SEARCH_ALLOWED_DOMAINS)
+        ),
+        "input_schema": {
+            "type": "object", "required": ["query", "allowed_domains"],
+            "properties": {
+                "query": {"type": "string", "description": "The search query"},
+                "allowed_domains": {
+                    "type": "array", "items": {"type": "string"},
+                    "description": "Domains to restrict the search to (must be from the allowed list above)."
+                },
+            }
+        }
+    },
+    {
+        "name": "tool_web_fetch",
+        "description": "Fetch the readable text content of a specific URL returned by tool_web_search (must be on an allowed domain).",
+        "input_schema": {
+            "type": "object", "required": ["url"],
+            "properties": {"url": {"type": "string", "description": "The URL to fetch"}}
+        }
+    },
+]
+
 def execute_tool(name: str, args: dict) -> list:
     """Run one tool call and return its result as a list of Anthropic
     content blocks. Almost every tool returns one text block; tool_view_image
@@ -282,6 +336,8 @@ def execute_tool(name: str, args: dict) -> list:
         if name == "tool_convert_to_png": return _text_block(tool_convert_to_png(args["svg_path"], args.get("dpi", 200)))
         if name == "tool_view_image": return tool_view_image(args["path"])
         if name == "tool_view_pdf_page": return tool_view_pdf_page(args["path"], int(args["page"]))
+        if name == "tool_web_search": return _text_block(web_search(args["query"], args.get("allowed_domains", [])))
+        if name == "tool_web_fetch": return _text_block(web_fetch(args["url"]))
         return _text_block(f"Error: Unknown tool {name}")
     except Exception as e:
         return _text_block(f"Tool execution error: {e}")
@@ -419,6 +475,30 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
         system_prompt = f"You are an expert study-notes generator.\n\nSKILL DEFINITION:\n{load_skill_prompt()}"
         default_messages = [{"role": "user", "content": build_user_prompt(target_dir, top_transcripts, sup_files, expected_docx)}]
 
+    # Bounded web-enrichment tools are offered only when opted in (off by
+    # default). Behavior + domain/budget limits live in src/common/web_enrichment.py
+    # and this loop; the model can't reach the web otherwise.
+    active_tools = list(AGENT_TOOLS)
+    if getattr(config, "ENABLE_WEB_ENRICHMENT", False):
+        active_tools = active_tools + WEB_TOOLS
+
+    # Deterministic run-log scoping for the retrospective. The skill's own
+    # scripts -- run by the MODEL via tool_bash -- log to
+    # $STUDY_NOTES_RUNDIR/run.jsonl (tools/_log.py; default '.study-notes'
+    # relative to cwd). tool_bash inherits THIS process's env, so setting the
+    # var here points every such log at this chapter's local scratch workspace
+    # regardless of the cwd the model picks, letting capture_retro_findings()
+    # read a log that belongs to just this chapter. sync_skill_package() puts a
+    # copy of retro.py (and the rest of the skill) on disk for us to run it.
+    # Skipped in dev mode: the dummy prompt never runs the skill's scripts.
+    chapter_workspace = _chapter_workspace(target_dir)
+    if not dev_mode:
+        os.environ["STUDY_NOTES_RUNDIR"] = str(chapter_workspace / ".study-notes")
+        try:
+            sync_skill_package()
+        except Exception as e:
+            logger.warning(f"Could not pre-sync skill package for retro support: {e}")
+
     # `messages` is the running back-and-forth conversation with Claude:
     # our instructions, its replies, and every tool result, all in order.
     # Every new turn (below) sends the WHOLE conversation so far again --
@@ -427,6 +507,12 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
     messages = default_messages
     start_turn = 0
     attempts = 0
+    # Per-chapter web-enrichment budget/audit counters. Persisted in the
+    # progress file so the budget survives a crash/rate-limit resume rather
+    # than resetting to full each attempt.
+    web_searches = 0
+    web_fetches = 0
+    web_sources = []
     # If a PREVIOUS run of this same chapter got interrupted partway
     # through (crash, rate limit, process killed), its conversation state
     # was saved to progress_file -- load it back so this run RESUMES from
@@ -437,6 +523,9 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
             messages = state.get("messages", default_messages)
             start_turn = state.get("turn", 0)
             attempts = state.get("attempts", 0)
+            web_searches = state.get("web_searches", 0)
+            web_fetches = state.get("web_fetches", 0)
+            web_sources = state.get("web_sources", [])
             logger.info(f"Resuming from turn {start_turn} with {len(messages)} messages (attempt {attempts + 1}).")
         except Exception as e:
             logger.warning(f"Failed to load progress file ({e}); starting fresh.")
@@ -454,7 +543,9 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
     def save_progress(turn: int):
         try:
             progress_file.write_text(
-                json.dumps({"turn": turn, "messages": messages, "attempts": attempts}),
+                json.dumps({"turn": turn, "messages": messages, "attempts": attempts,
+                            "web_searches": web_searches, "web_fetches": web_fetches,
+                            "web_sources": web_sources}),
                 encoding="utf-8")
         except Exception as e:
             logger.warning(f"Could not save progress file: {e}")
@@ -476,7 +567,7 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
                 max_tokens=max_tokens,
                 system=system_prompt,
                 messages=messages,
-                tools=AGENT_TOOLS,
+                tools=active_tools,
             )
             tracker.record(generator_model, getattr(resp, "usage", None))
 
@@ -506,6 +597,24 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
                 logger.info("Claude finished generation without calling more tools.")
                 if expected_docx.exists():
                     logger.info("Target docx confirmed. Placing success marker.")
+                    # Best-effort post-run: web-sources manifest + retrospective
+                    # capture/auto-fix. Success-gated (only a proven .docx gets
+                    # here) and wrapped in its own try/except so a stray error in
+                    # this bookkeeping can never turn a completed chapter into a
+                    # failure. Mirrors the agents/subprocess gate. capture_retro_findings
+                    # reads chapter_workspace/.study-notes/run.jsonl -- the same
+                    # path STUDY_NOTES_RUNDIR scoped the skill scripts' logging to.
+                    try:
+                        if getattr(config, "ENABLE_WEB_ENRICHMENT", False):
+                            write_web_sources_manifest(target_dir, web_sources)
+                        if not dev_mode:
+                            retro = capture_retro_findings(target_dir, chapter_workspace)
+                            if retro["candidates"] and getattr(config, "ENABLE_AUTO_SKILL_IMPROVEMENT", False):
+                                logger.warning(f"{len(retro['candidates'])} skill-improvement candidate(s) found; "
+                                               f"attempting autonomous fix (regress.py-gated)...")
+                                apply_retro_fixes(retro["candidates"], chapter_workspace)
+                    except Exception as e:
+                        logger.warning(f"Post-run retro/manifest step failed (chapter still OK): {e}")
                     (target_dir / config.MARKER).write_text("Done", encoding="utf-8")
                     progress_file.unlink(missing_ok=True)
                     return EXIT_OK
@@ -526,7 +635,27 @@ def run_generate(target_dir: Path = None, live_mode: bool = False, verbose: bool
             tool_results = []
             for t in tool_calls:
                 logger.info(f"  Executing tool: {t.name}")
+                # Enforce the per-chapter web budget in Python (mirrors the
+                # agents loop) -- the model's own restraint is never trusted.
+                # A cap hit returns an error tool_result instead of running,
+                # so the model can keep working with its other tools.
+                if t.name == "tool_web_search":
+                    if web_searches >= config.MAX_WEB_SEARCHES_PER_CHAPTER:
+                        tool_results.append({"type": "tool_result", "tool_use_id": t.id, "is_error": True,
+                                             "content": _text_block("Error: web search budget for this chapter is exhausted; do not search again.")})
+                        continue
+                    web_searches += 1
+                elif t.name == "tool_web_fetch":
+                    if web_fetches >= config.MAX_WEB_SEARCHES_PER_CHAPTER:
+                        tool_results.append({"type": "tool_result", "tool_use_id": t.id, "is_error": True,
+                                             "content": _text_block("Error: web fetch budget for this chapter is exhausted; do not fetch again.")})
+                        continue
+                    web_fetches += 1
                 blocks = _truncate_text_blocks(execute_tool(t.name, t.input))
+                if t.name == "tool_web_fetch":
+                    url = t.input.get("url")
+                    if url and url not in web_sources:
+                        web_sources.append(url)
                 tool_results.append({"type": "tool_result", "tool_use_id": t.id, "content": blocks})
             messages.append({"role": "user", "content": tool_results})
 
