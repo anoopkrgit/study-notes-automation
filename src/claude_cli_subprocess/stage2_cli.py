@@ -352,6 +352,9 @@ def _repackage_skill_dir(skill_dir: Path, out_skill_file: Path) -> None:
     self-improvement session's edits are safe to keep."""
     with zipfile.ZipFile(out_skill_file, "w") as zf:
         for path in sorted(skill_dir.rglob("*")):
+            rel_parts = path.relative_to(skill_dir).parts
+            if any(p in {".git", "__pycache__", "node_modules"} for p in rel_parts):
+                continue
             arcname = path.relative_to(skill_dir).as_posix()
             if path.is_dir():
                 zf.writestr(arcname + "/", b"")
