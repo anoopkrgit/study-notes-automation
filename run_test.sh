@@ -17,4 +17,4 @@ find "$TARGET_DIR" -maxdepth 1 -mindepth 1 -type d -not -name "_*" | sort
 
 echo
 echo "Running a cheap smoke test of both stages (--stage1-mode llm-token-saver --stage2-mode llm-token-saver)..."
-python3 "$SCRIPT_DIR/src/main.py" --stage1-mode llm-token-saver --stage2-mode llm-token-saver --verbose
+python3 "$SCRIPT_DIR/src/main.py" --stage1-mode llm-token-saver --stage2-mode llm-token-saver --stage2-impl graph --verbose

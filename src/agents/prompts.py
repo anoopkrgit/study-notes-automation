@@ -42,6 +42,7 @@ one or two cheap turns.
 from __future__ import annotations
 
 import zipfile
+import fcntl
 from pathlib import Path
 
 import settings as config
@@ -141,16 +142,29 @@ def ensure_skill_extracted() -> Path:
     zip_mtime = zip_path.stat().st_mtime
     extracted_marker = skill_dir / '.extracted'
 
+    # Check lock-free first for speed
     if extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime:
-        # Already unpacked, and the ZIP hasn't changed since -- nothing to do.
         return skill_dir
-
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            zf.extractall(skill_dir)
-        extracted_marker.touch()
-    except Exception:
-        pass
+        
+    lock_file = skill_dir / '.lock'
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    lock_file.touch(exist_ok=True)
+    
+    with open(lock_file, 'r') as lf:
+        try:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            # Re-check under lock
+            if extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime:
+                return skill_dir
+                
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zf:
+                    zf.extractall(skill_dir)
+                extracted_marker.touch()
+            except Exception:
+                pass
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
 
     return skill_dir
 
@@ -177,6 +191,16 @@ def author_system_prompt(state: dict) -> list[dict]:
 
     instructions = (
         "Read transcripts, and author content.json and figures.json as appropriate.\n\n"
+    )
+    
+    if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+        instructions += (
+            "You may use tool_web_search and tool_web_fetch to gather additional "
+            "context, definitions, or reference material from allowed domains. Use this "
+            "sparingly and strictly as directed by SKILL.md. Do not fetch unnecessary pages.\n\n"
+        )
+        
+    instructions += (
         f"Example content.json:\n{content_example}\n\n"
         f"Example figures.json:\n{figures_example}"
     )
