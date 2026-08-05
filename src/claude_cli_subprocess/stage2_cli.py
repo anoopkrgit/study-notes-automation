@@ -234,7 +234,7 @@ def verify_resolved_skill(workspace: Path, expected_dirs: set) -> dict:
         return {"checked": False, "ok": True, "resolved": None}
 
 
-def capture_retro_findings(target_dir: Path, workspace: Path) -> dict:
+def capture_retro_findings(target_dir: Path, workspace: Path, resolved_skill_dir: Path = None) -> dict:
     """Run the skill's own tools/retro.py directly (--json --rundir
     <workspace>/.study-notes) rather than relying on the model to have
     invoked it, or scraping its text output from the transcript --
@@ -263,7 +263,8 @@ def capture_retro_findings(target_dir: Path, workspace: Path) -> dict:
     """
     try:
         rundir = workspace / ".study-notes"
-        retro_py = config.CLAUDE_SKILL_INSTALL_DIR / "tools" / "retro.py"
+        base_skill_dir = resolved_skill_dir if resolved_skill_dir else config.CLAUDE_SKILL_INSTALL_DIR
+        retro_py = base_skill_dir / "tools" / "retro.py"
         result = subprocess.run(
             [sys.executable, str(retro_py), "--rundir", str(rundir), "--json"],
             capture_output=True, text=True, timeout=30,
@@ -877,6 +878,7 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
             except Exception as e:
                 logger.warning(f"Could not save progress file: {e}")
 
+        resolved_skill_dir = None
         if not getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
             # Skip in dev mode: DEV_TOKEN_SAVER_MODE's dummy prompt never
             # invokes /study-notes at all (see its own comment above), so
@@ -887,6 +889,7 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
             )
             if skill_check["checked"]:
                 logger.info(f"Resolved skill dir: {skill_check['resolved']}")
+                resolved_skill_dir = Path(skill_check['resolved']) if skill_check.get('resolved') else None
             if skill_check["checked"] and not skill_check["ok"]:
                 # TRUTH-CHECK, NOT SELF-REPORTED SUCCESS (see module docstring):
                 # a wrong skill can still produce a file at expected_docx by
@@ -910,7 +913,7 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
             logger.info("Target docx confirmed. Placing success marker.")
             if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
                 write_web_sources_manifest(target_dir, _chapter_workspace(target_dir))
-            retro = capture_retro_findings(target_dir, _chapter_workspace(target_dir))
+            retro = capture_retro_findings(target_dir, _chapter_workspace(target_dir), resolved_skill_dir=resolved_skill_dir)
             if retro["candidates"]:
                 if getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
                     logger.warning(f"{len(retro['candidates'])} skill-improvement candidate(s) "
