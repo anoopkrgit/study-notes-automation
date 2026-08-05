@@ -483,12 +483,16 @@ confirm regress.py's final pass/fail."""
                     "regress_output": regress.stdout[-2000:]}
 
         _repackage_skill_dir(skill_copy, source_skill[0])
-        sync_skill_package()
-        sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)
-        logger.info(f"Autonomous skill improvement applied and verified via regress.py "
-                    f"(claude CLI returncode={result['returncode']}); "
-                    f"templates/study-notes.skill updated and re-synced.")
-        return {"applied": True, "reason": "regress.py passed", "session_result": result["raw_stdout"][-2000:]}
+        try:
+            sync_skill_package()
+            sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)
+            logger.info(f"Autonomous skill improvement applied and verified via regress.py "
+                        f"(claude CLI returncode={result['returncode']}); "
+                        f"templates/study-notes.skill updated and re-synced.")
+            return {"applied": True, "reason": "regress.py passed", "session_result": result["raw_stdout"][-2000:]}
+        except Exception as e:
+            logger.warning(f"Skill was updated in templates/ but sync failed: {e}")
+            return {"applied": True, "reason": f"applied but sync incomplete, check both install dirs manually: {e}", "session_result": result["raw_stdout"][-2000:]}
     except Exception as e:
         logger.exception(f"Unexpected error during autonomous skill improvement: {e}")
         return {"applied": False, "reason": f"unexpected error: {e}"}
