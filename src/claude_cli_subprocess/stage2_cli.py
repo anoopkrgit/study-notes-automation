@@ -613,8 +613,10 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
         allowed_tools = allowed_tools + ",WebSearch," + ",".join(
             f"WebFetch(domain:{domain})" for domain in config.WEB_SEARCH_ALLOWED_DOMAINS
         )
-        extra_env = {"CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION":
-                     str(config.MAX_WEB_SEARCHES_PER_CHAPTER)}
+        extra_env = {
+            "CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION": str(config.MAX_WEB_SEARCHES_PER_CHAPTER),
+            "CLAUDE_CODE_MAX_WEB_FETCHES_PER_SESSION": str(config.MAX_WEB_SEARCHES_PER_CHAPTER)
+        }
     cmd = [config.CLAUDE_BIN, "-p", prompt,
            "--output-format", "json",
            "--permission-mode", config.CLAUDE_PERMISSION_MODE,
