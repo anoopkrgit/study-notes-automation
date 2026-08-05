@@ -45,6 +45,7 @@ import zipfile
 from pathlib import Path
 
 import settings as config
+from src.common.skill_package import locked_refresh
 
 def load_skill_md_from_zip() -> str:
     """Read SKILL.md (the master content/formatting rulebook) out of the
@@ -141,17 +142,25 @@ def ensure_skill_extracted() -> Path:
     zip_mtime = zip_path.stat().st_mtime
     extracted_marker = skill_dir / '.extracted'
 
-    if extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime:
-        # Already unpacked, and the ZIP hasn't changed since -- nothing to do.
+    def is_fresh() -> bool:
+        return extracted_marker.exists() and extracted_marker.stat().st_mtime >= zip_mtime
+
+    # Cheap lock-free check first -- the common case is "already unpacked,
+    # ZIP unchanged", and that shouldn't pay for a lock.
+    if is_fresh():
         return skill_dir
 
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            zf.extractall(skill_dir)
-        extracted_marker.touch()
-    except Exception:
-        pass
+    def refresh() -> None:
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zf:
+                zf.extractall(skill_dir)
+            extracted_marker.touch()
+        except Exception:
+            pass
 
+    # The flock + re-check-under-lock dance is shared with
+    # stage2_cli.sync_skill_package() -- see src/common/skill_package.py.
+    locked_refresh(skill_dir / '.lock', is_fresh, refresh)
     return skill_dir
 
 def author_system_prompt(state: dict) -> list[dict]:
@@ -177,6 +186,16 @@ def author_system_prompt(state: dict) -> list[dict]:
 
     instructions = (
         "Read transcripts, and author content.json and figures.json as appropriate.\n\n"
+    )
+    
+    if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+        instructions += (
+            "You may use tool_web_search and tool_web_fetch to gather additional "
+            "context, definitions, or reference material from allowed domains. Use this "
+            "sparingly and strictly as directed by SKILL.md. Do not fetch unnecessary pages.\n\n"
+        )
+        
+    instructions += (
         f"Example content.json:\n{content_example}\n\n"
         f"Example figures.json:\n{figures_example}"
     )

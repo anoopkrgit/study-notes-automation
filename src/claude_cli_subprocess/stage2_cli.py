@@ -34,10 +34,8 @@ import json
 import re
 import shutil
 import subprocess
-import sys
 import time
 import zipfile
-import fcntl
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -46,6 +44,16 @@ from src.func_tools_and_utils import (
     logger, write_retry_epoch, EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 )
 from .common import build_claude_env, is_usage_limit
+from src.common.skill_package import locked_refresh
+# Shared with src/agents/stage2_graph.py -- see src/common/skill_retro.py's
+# module docstring for why this lives outside both implementations.
+# Re-exported under these names (including the _repackage_skill_dir alias)
+# so every existing caller/test in this module keeps working unchanged.
+from src.common.skill_retro import (
+    capture_retro_findings,
+    repackage_skill_dir as _repackage_skill_dir,
+    apply_retro_fixes,
+)
 
 
 def _latest_session_transcript(workspace: Path) -> Path:
@@ -236,66 +244,6 @@ def verify_resolved_skill(workspace: Path, expected_dirs: set) -> dict:
         return {"checked": False, "ok": True, "resolved": None}
 
 
-def capture_retro_findings(target_dir: Path, workspace: Path, resolved_skill_dir: Path = None) -> dict:
-    """Run the skill's own tools/retro.py directly (--json --rundir
-    <workspace>/.study-notes) rather than relying on the model to have
-    invoked it, or scraping its text output from the transcript --
-    consistent with this module's TRUTH-CHECK, NOT SELF-REPORTED SUCCESS
-    philosophy. Writes target_dir/config.RETRO_FINDINGS when retro.py
-    reports one or more candidate skill improvements, so they survive past
-    the unattended run instead of evaporating.
-
-    THIS EXISTS BECAUSE: SKILL.md's own retrospective workflow says to
-    "present this list, get approval" before touching the skill -- but
-    build_cli_prompt() separately instructs "fully unattended -- do not
-    pause for confirmation." Confirmed live: the model correctly resolved
-    that conflict by NOT pausing, but that meant retro.py's real findings
-    (candidate skill improvements, backed by real repeated-failure counts)
-    never reached a human at all, just a one-line dismissal buried in the
-    model's own final summary. Neither instruction is wrong -- unattended
-    runs genuinely can't hold an approval conversation -- so the fix is
-    capturing the findings durably for a human to review LATER, not making
-    the run stop and wait.
-
-    Returns {"ok": bool, "candidates": list, "log_records": int}. ok=False
-    (candidates=[]) on any failure -- retro.py exits non-zero when no run
-    log exists yet (e.g. DEV_TOKEN_SAVER_MODE, which never touches the real
-    pipeline) -- best-effort like every other post-run reader in this
-    module: never something a chapter's success/failure depends on.
-    """
-    try:
-        rundir = workspace / ".study-notes"
-        base_skill_dir = resolved_skill_dir if resolved_skill_dir else config.CLAUDE_SKILL_INSTALL_DIR
-        retro_py = base_skill_dir / "tools" / "retro.py"
-        result = subprocess.run(
-            [sys.executable, str(retro_py), "--rundir", str(rundir), "--json"],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            return {"ok": False, "candidates": [], "log_records": 0}
-        report = json.loads(result.stdout)
-        candidates = report.get("candidates") or []
-        log_records = report.get("log_records", 0)
-        if candidates:
-            lines = [
-                f"Skill-improvement candidates from tools/retro.py ({log_records} log records this run).",
-                "Captured automatically -- NOT applied. This run was unattended, so per",
-                "build_cli_prompt()'s own instruction it correctly did not pause to ask; per",
-                "SKILL.md's retrospective workflow, nothing here should be applied to the shared",
-                "skill without a human reviewing it first (run tools/regress.py before accepting",
-                "any change, then add it to LESSONS.md -- see SKILL.md's own \"After delivery\" section).",
-                "",
-            ]
-            for i, c in enumerate(candidates, 1):
-                lines.append(f"{i}. {c.get('issue')} (observed {c.get('observed')}x)")
-                lines.append(f"   {c.get('change')}")
-                lines.append("")
-            (target_dir / config.RETRO_FINDINGS).write_text("\n".join(lines), encoding="utf-8")
-        return {"ok": True, "candidates": candidates, "log_records": log_records}
-    except Exception:
-        return {"ok": False, "candidates": [], "log_records": 0}
-
-
 def sync_skill_package(install_dir: Path = None) -> Path:
     """Ensure the current templates/*.skill package is unzipped and
     up to date at `install_dir`, re-extracting only when the source .skill
@@ -329,196 +277,34 @@ def sync_skill_package(install_dir: Path = None) -> Path:
     source = candidates[0]
     marker_file = install_dir / ".synced_from"
     stamp = f"{source}|{source.stat().st_mtime}"
-    if install_dir.exists() and marker_file.exists():
-        try:
-            if marker_file.read_text(encoding="utf-8").strip() == stamp:
-                logger.info(f"Skill package unchanged ({source.name}); skipping re-extract.")
-                return install_dir
-        except Exception:
-            pass  # fall through and re-extract if the stamp is unreadable
+
+    def is_fresh() -> bool:
+        if install_dir.exists() and marker_file.exists():
+            try:
+                return marker_file.read_text(encoding="utf-8").strip() == stamp
+            except Exception:
+                return False  # unreadable stamp -> treat as stale and re-extract
+        return False
+
+    if is_fresh():
+        logger.info(f"Skill package unchanged ({source.name}); skipping re-extract.")
+        return install_dir
 
     logger.info(f"Syncing skill package {source} -> {install_dir} ...")
-    lock_file = install_dir.parent / f"{install_dir.name}.lock"
-    install_dir.parent.mkdir(parents=True, exist_ok=True)
-    with open(lock_file, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            # Re-check inside the lock in case another process just synced it
-            if install_dir.exists() and marker_file.exists():
-                try:
-                    if marker_file.read_text(encoding="utf-8").strip() == stamp:
-                        logger.info(f"Skill package unchanged ({source.name}); skipping re-extract (checked after lock).")
-                        return install_dir
-                except Exception:
-                    pass
 
-            if install_dir.exists():
-                shutil.rmtree(install_dir)
-            install_dir.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(source, "r") as zf:
-                zf.extractall(install_dir)
-            marker_file.write_text(stamp, encoding="utf-8")
-            logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
-    
+    def refresh() -> None:
+        if install_dir.exists():
+            shutil.rmtree(install_dir)
+        install_dir.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(source, "r") as zf:
+            zf.extractall(install_dir)
+        marker_file.write_text(stamp, encoding="utf-8")
+        logger.info(f"Skill package synced ({source.stat().st_size} bytes from {source.name}).")
+
+    # The flock + re-check-under-lock dance is shared with
+    # prompts.ensure_skill_extracted() -- see src/common/skill_package.py.
+    locked_refresh(install_dir.parent / f"{install_dir.name}.lock", is_fresh, refresh)
     return install_dir
-
-
-def _repackage_skill_dir(skill_dir: Path, out_skill_file: Path) -> None:
-    """Zip skill_dir's contents back into out_skill_file (overwriting it),
-    the inverse of sync_skill_package()'s extractall(). Used only by
-    apply_retro_fixes(), after regress.py has independently confirmed a
-    self-improvement session's edits are safe to keep."""
-    with zipfile.ZipFile(out_skill_file, "w") as zf:
-        for path in sorted(skill_dir.rglob("*")):
-            rel_parts = path.relative_to(skill_dir).parts
-            if any(p in {".git", "__pycache__", "node_modules"} for p in rel_parts):
-                continue
-            arcname = path.relative_to(skill_dir).as_posix()
-            if path.is_dir():
-                zf.writestr(arcname + "/", b"")
-            else:
-                zf.write(path, arcname, compress_type=zipfile.ZIP_DEFLATED)
-
-
-def apply_retro_fixes(candidates: list, source_workspace: Path) -> dict:
-    """Autonomously apply tools/retro.py's candidate skill improvements --
-    opt-in (config.ENABLE_AUTO_SKILL_IMPROVEMENT), a SEPARATE claude -p
-    session from chapter generation itself, scoped ONLY to editing a scratch
-    copy of the skill and validating via tools/regress.py.
-
-    Explicitly authorized to skip human approval, unlike SKILL.md's own
-    interactive-session "present this list, get approval" retrospective
-    text (that text still describes the right workflow for a human doing
-    skill development directly -- this function exists for the unattended
-    pipeline, which has no one to ask): git tracks
-    templates/study-notes.skill, so a bad change is always recoverable.
-    tools/regress.py is still the accept/reject gate, and it is
-    INDEPENDENTLY RE-RUN by this function after the session claims success,
-    never just trusted -- this module's TRUTH-CHECK, NOT SELF-REPORTED
-    SUCCESS rule applies here too, arguably more so: this is the one code
-    path in the whole pipeline that can rewrite the pipeline's own
-    behavior for every future chapter.
-
-    source_workspace is the chapter workspace whose .study-notes/run.jsonl
-    produced `candidates` -- granted read access (via --add-dir) so the
-    fixing session can look at the RAW logged instances behind each
-    aggregated candidate. issue/count/suggested-change alone isn't enough
-    to tell a genuine defect from a false positive: the SLASH_OK fix this
-    function is modeled on needed exactly that raw evidence (2 of 3 flagged
-    instances turned out to be false positives, not the genuine "make the
-    frac rule more prominent" fix the aggregated candidate alone suggested).
-
-    Returns {"applied": bool, "reason": str}.
-    """
-    workspace = config.AUTO_SKILL_IMPROVEMENT_WORKSPACE
-    workspace.mkdir(parents=True, exist_ok=True)
-    skill_copy = workspace / "skill_copy"
-
-    try:
-        source_skill = sorted(
-            config.LOCAL_RUNTIME_ROOT.glob(config.CLAUDE_SKILL_SOURCE_GLOB),
-            key=lambda p: p.stat().st_mtime, reverse=True,
-        )
-        if not source_skill:
-            return {"applied": False, "reason": "no templates/*.skill source found"}
-        # Always start from the CURRENT accepted skill, discarding any stale
-        # copy from a previous attempt -- this function must never build on
-        # top of a change that was itself never validated.
-        if skill_copy.exists():
-            shutil.rmtree(skill_copy)
-        sync_skill_package(skill_copy)
-
-        candidate_lines = "\n".join(
-            f"{i}. {c.get('issue')} (observed {c.get('observed')}x): {c.get('change')}"
-            for i, c in enumerate(candidates, 1)
-        )
-        prompt = f"""Fully unattended -- do not pause for confirmation and do not ask any questions.
-
-tools/retro.py found these candidate skill improvements from a real chapter generation run:
-
-{candidate_lines}
-
-Skill copy to edit (a scratch copy -- never edit anything outside this path):
-  {skill_copy}
-
-Raw evidence for these candidates (the actual logged tool events, not just the
-aggregated summary above) is at:
-  {source_workspace / ".study-notes" / "run.jsonl"}
-
-For EACH candidate: read the raw evidence behind it before deciding on a fix -- an
-aggregated "observed Nx" count can hide a mix of genuine defects and false positives
-that need different fixes (or no fix at all). Make the smallest change that addresses
-what the evidence actually shows. Skip a candidate rather than guess if the evidence
-doesn't clearly support one fix.
-
-Before finishing, from cwd {workspace} (node_modules must be installed here first --
-`npm install --silent --no-audit --no-fund docx@9.7.1` if not already present), run:
-  python3 {skill_copy}/tools/regress.py
-It must exit 0 (PASS). If it doesn't, revert whichever change caused the failure and
-either try a smaller fix or skip that candidate -- a change that fails regress.py must
-never be left in place, regardless of how reasonable it seemed.
-
-For every change you keep, add a one-line entry to {skill_copy}/LESSONS.md following
-its existing table format (see the file for the convention).
-
-Report at the end: which candidates you addressed, which you skipped and why, and
-confirm regress.py's final pass/fail."""
-
-        start_time = time.time()
-        logger.info(f"Invoking claude CLI for autonomous skill improvement "
-                    f"({len(candidates)} candidate(s), cwd={workspace}) ...")
-        result = run_claude_cli(
-            target_dir=source_workspace / ".study-notes",
-            prompt=prompt,
-            workspace_override=workspace,
-            timeout_seconds=config.AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS
-        )
-        if not result["ok"]:
-            return {"applied": False, "reason": result.get("error", "cli call failed")}
-
-        # Check if the session actually made any changes to the skill dir
-        modified = any(p.stat().st_mtime > start_time for p in skill_copy.rglob("*") if p.is_file())
-        if not modified:
-            return {"applied": False, "reason": "session exited without modifying the skill"}
-
-        # TRUTH-CHECK: re-run regress.py OURSELVES against skill_copy,
-        # regardless of what the session's own JSON envelope or final text
-        # claims -- see this function's docstring.
-        try:
-            # Ensure docx is installed in the workspace, as regress.py relies on it and the fixing session might have skipped or failed it
-            if not (workspace / "node_modules" / "docx").exists():
-                subprocess.run(["npm", "install", "docx"], cwd=str(workspace), capture_output=True)
-
-            regress = subprocess.run(
-                [sys.executable, str(skill_copy / "tools" / "regress.py")],
-                cwd=str(workspace), capture_output=True, text=True, timeout=120,
-            )
-        except Exception as e:
-            return {"applied": False, "reason": f"regress.py could not be run: {e}"}
-
-        if regress.returncode != 0:
-            logger.warning(f"Autonomous skill improvement attempt did NOT pass "
-                            f"regress.py (exit {regress.returncode}); discarding, "
-                            f"templates/study-notes.skill unchanged.")
-            return {"applied": False, "reason": "regress.py failed after the session's edits",
-                    "regress_output": regress.stdout[-2000:]}
-
-        _repackage_skill_dir(skill_copy, source_skill[0])
-        try:
-            sync_skill_package()
-            sync_skill_package(config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR)
-            logger.info(f"Autonomous skill improvement applied and verified via regress.py "
-                        f"(claude CLI returncode={result['returncode']}); "
-                        f"templates/study-notes.skill updated and re-synced.")
-            return {"applied": True, "reason": "regress.py passed", "session_result": result["raw_stdout"][-2000:]}
-        except Exception as e:
-            logger.warning(f"Skill was updated in templates/ but sync failed: {e}")
-            return {"applied": True, "reason": f"applied but sync incomplete, check both install dirs manually: {e}", "session_result": result["raw_stdout"][-2000:]}
-    except Exception as e:
-        logger.exception(f"Unexpected error during autonomous skill improvement: {e}")
-        return {"applied": False, "reason": f"unexpected error: {e}"}
 
 
 def _chapter_workspace(target_dir: Path) -> Path:

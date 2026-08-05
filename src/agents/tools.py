@@ -61,6 +61,48 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 
 import settings as config
+import urllib.request
+import urllib.parse
+from html.parser import HTMLParser
+
+try:
+    from ddgs import DDGS
+except ImportError:
+    # We will assume it's installed or provided, but fallback gracefully if missing
+    DDGS = None
+
+# A very basic HTML to text parser for tool_web_fetch
+class SimpleHTMLToText(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.text_parts = []
+        self.in_body = False
+        self.ignore_tags = {'script', 'style', 'head', 'meta', 'link'}
+        self.current_ignore = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'body':
+            self.in_body = True
+        if tag in self.ignore_tags:
+            self.current_ignore += 1
+        if tag in {'p', 'br', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'}:
+            self.text_parts.append('\n')
+
+    def handle_endtag(self, tag):
+        if tag in self.ignore_tags and self.current_ignore > 0:
+            self.current_ignore -= 1
+        if tag == 'body':
+            self.in_body = False
+
+    def handle_data(self, data):
+        if self.in_body and self.current_ignore == 0:
+            cleaned = data.strip()
+            if cleaned:
+                self.text_parts.append(cleaned + " ")
+
+    def get_text(self):
+        return "".join(self.text_parts).strip()
+
 from src.func_tools_and_utils import (
     logger,
     tool_view_pdf_page,
@@ -68,6 +110,7 @@ from src.func_tools_and_utils import (
     tool_convert_to_png
 )
 from src.agents.prompts import ensure_skill_extracted
+from src.claude_cli_subprocess.stage2_cli import _chapter_workspace
 
 
 def _validate_path(requested: str, allowed_root: str) -> Path:
@@ -86,6 +129,33 @@ def _validate_path(requested: str, allowed_root: str) -> Path:
     except ValueError:
         raise ValueError(f"Path traversal attempt: {requested} is not within {allowed_root}")
     return requested_path
+
+
+def _skill_run_env(chapter_dir: str) -> dict:
+    """Env for every subprocess call into one of the skill's own tool
+    scripts (validate.py, verify.py, invariants.py, pedagogy.py,
+    baseline.py, qa.py, ingest.py). Those scripts share tools/_log.py,
+    which appends to $STUDY_NOTES_RUNDIR/run.jsonl (default './.study-notes'
+    -- i.e. relative to cwd) every time they reject something. Without this,
+    every chapter's subprocess calls inherit the SAME cwd (wherever the
+    orchestrator process itself was launched from) and so silently share
+    one unscoped run.jsonl across chapters, and possibly across concurrent
+    runs.
+
+    Scoped to _chapter_workspace(chapter_dir) -- a LOCAL scratch folder,
+    not chapter_dir itself -- reusing claude_cli_subprocess.stage2_cli's own
+    per-chapter workspace convention rather than a second, agents-only one.
+    chapter_dir here is normally Drive-synced (config.DEFAULT_TARGET_ROOT);
+    this pure-audit-trail log has no reason to live there any more than
+    node_modules/build artifacts do -- see _chapter_workspace's own
+    docstring. Pointing STUDY_NOTES_RUNDIR at that folder is what lets
+    tools/retro.py (see capture_retro_findings in src/common/skill_retro.py)
+    read back a log that actually belongs to just this chapter -- the same
+    real, evidence-backed retrospective mechanism the claude_cli_subprocess
+    implementation uses, not a synthesized approximation of it.
+    """
+    rundir_base = _chapter_workspace(Path(chapter_dir))
+    return {**os.environ, 'STUDY_NOTES_RUNDIR': str(rundir_base / '.study-notes')}
 
 
 # -----------------------------------------------------------------------------
@@ -119,7 +189,7 @@ def tool_ingest(pdf_path: str, chapter_dir: str) -> dict:
     
     result = subprocess.run(
         ['python3', str(ingest_script), pdf_path, '--out', chapter_dir],
-        capture_output=True, text=True
+        capture_output=True, text=True, env=_skill_run_env(chapter_dir)
     )
     
     if result.returncode == 0:
@@ -203,7 +273,7 @@ def tool_write_content_json(content: dict, chapter_dir: str) -> dict:
     try:
         result = subprocess.run(
             ['python3', str(validate_script), tmp_path, '--schema', str(schema_path)],
-            capture_output=True, text=True
+            capture_output=True, text=True, env=_skill_run_env(chapter_dir)
         )
         if result.returncode == 0:
             out_path = Path(chapter_dir) / "content.json"
@@ -244,7 +314,7 @@ def tool_write_figures_json(figures: dict, chapter_dir: str) -> dict:
     try:
         result = subprocess.run(
             ['python3', str(validate_script), tmp_path, '--schema', str(schema_path)],
-            capture_output=True, text=True
+            capture_output=True, text=True, env=_skill_run_env(chapter_dir)
         )
         if result.returncode == 0:
             out_path = Path(chapter_dir) / "figures.json"
@@ -275,6 +345,90 @@ def tool_read_qa_feedback(chapter_dir: str) -> dict:
     return {}
 
 
+def _is_domain_allowed(domain: str) -> bool:
+    """Single source of truth for the web-enrichment domain whitelist --
+    config.WEB_SEARCH_ALLOWED_DOMAINS, shared with the claude_cli_subprocess
+    implementation, not a separately-maintained copy. `domain` matches if
+    it equals an allowed entry or is a subdomain of one."""
+    return any(domain == d or domain.endswith("." + d) for d in config.WEB_SEARCH_ALLOWED_DOMAINS)
+
+
+def tool_web_search(query: str, allowed_domains: list[str], chapter_dir: str) -> str:
+    """
+    Search the web for a query, constrained to allowed domains.
+    Returns a list of URLs and snippets.
+    """
+    if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
+        logger.info(f"[tool_web_search] DEV MODE mock search for: {query}")
+        return json.dumps([{"url": "https://en.wikipedia.org/wiki/Mock", "title": "Mock", "snippet": "Mock search result."}])
+
+    if not DDGS:
+        return json.dumps({"error": "ddgs library not installed. Web search unavailable."})
+
+    validated_domains = [d for d in allowed_domains if _is_domain_allowed(d)]
+
+    if not validated_domains:
+        return json.dumps({"error": f"None of the requested domains are in the whitelist: {config.WEB_SEARCH_ALLOWED_DOMAINS}"})
+
+    site_query = " OR ".join([f"site:{d}" for d in validated_domains])
+    full_query = f"{query} ({site_query})"
+
+    logger.info(f"[tool_web_search] Searching: {full_query}")
+    try:
+        results = DDGS().text(full_query, max_results=5)
+        # DuckDuckGo sometimes returns empty lists if no results
+        if not results:
+            return json.dumps([])
+        return json.dumps([{"url": r.get('href'), "title": r.get('title'), "snippet": r.get('body')} for r in results])
+    except Exception as e:
+        logger.error(f"[tool_web_search] Error: {e}")
+        return json.dumps({"error": f"Search failed: {str(e)}"})
+
+def tool_web_fetch(url: str, chapter_dir: str) -> str:
+    """
+    Fetch and return the readable text content of a URL.
+    """
+    if getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
+        logger.info(f"[tool_web_fetch] DEV MODE mock fetch for: {url}")
+        return "Mock content for web fetch."
+
+    # Validate domain (and scheme -- urllib also understands file:// etc.,
+    # which must never reach urlopen() here).
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https") or not _is_domain_allowed(parsed.netloc):
+        return json.dumps({"error": f"Domain {parsed.netloc} is not in the whitelist: {config.WEB_SEARCH_ALLOWED_DOMAINS}"})
+
+    logger.info(f"[tool_web_fetch] Fetching: {url}")
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            # urlopen follows redirects with no domain re-check of its own --
+            # re-validate the URL actually reached before trusting the body,
+            # so an allowed page can't silently redirect us off-whitelist.
+            final_domain = urllib.parse.urlparse(response.url).netloc
+            if not _is_domain_allowed(final_domain):
+                return json.dumps({"error": f"Redirected outside the allowed domains (to {final_domain}); refusing to read the response."})
+            # Cap bytes read, not just the text after decoding -- an
+            # allowed domain serving an unexpectedly huge page shouldn't be
+            # read into memory in full first.
+            html = response.read(2_000_000).decode('utf-8', errors='ignore')
+            parser = SimpleHTMLToText()
+            parser.feed(html)
+            text = parser.get_text()
+
+            # Cap the length to avoid blowing up the context window
+            max_len = 15000
+            if len(text) > max_len:
+                text = text[:max_len] + "\n\n...[CONTENT TRUNCATED]..."
+            return text
+    except Exception as e:
+        logger.error(f"[tool_web_fetch] Error fetching {url}: {e}")
+        return json.dumps({"error": f"Fetch failed: {str(e)}"})
+
+
 # -----------------------------------------------------------------------------
 # 3. Figure tools -- used by the Figure agent to turn figures.json (a
 # written-out description of a diagram) into an actual PNG image, and then
@@ -293,10 +447,16 @@ def tool_figbuild(figures_json_path: str, chapter_dir: str) -> dict:
 
     skill_dir = Path(ensure_skill_extracted())
     figbuild_script = skill_dir / 'lib' / 'figbuild.py'
-    
+
+    # figbuild.py logs collision/error/result events to .study-notes/run.jsonl
+    # via tools/_log.py (unlike validate.py, which doesn't log at all), so it
+    # needs the same STUDY_NOTES_RUNDIR scoping as every other logging skill
+    # script here -- otherwise its figure-collision findings, which retro.py's
+    # RULES specifically look for, leak into an unscoped run.jsonl at the
+    # parent process's cwd. See _skill_run_env's docstring.
     result = subprocess.run(
         ['python3', str(figbuild_script), figures_json_path, '--out', chapter_dir],
-        capture_output=True, text=True
+        capture_output=True, text=True, env=_skill_run_env(chapter_dir)
     )
     
     if result.returncode == 0:
@@ -340,9 +500,17 @@ def tool_compile_docx(content_json_path: str, figures_json_path: str, chapter_di
     # Deriving figures directory assuming figures are written inside chapter_dir
     figs_dir = chapter_dir
     
+    # build.js's own run.jsonl logging hardcodes '.study-notes' relative to
+    # its cwd (no env var override, unlike the Python tool scripts below --
+    # see _skill_run_env's docstring) -- cwd=_chapter_workspace(chapter_dir)
+    # scopes it to this chapter's LOCAL workspace, same as everywhere else
+    # in this file. content_json_path/figs_dir/docx_path are all already
+    # absolute (derived from chapter_dir, which is always absolute in
+    # practice), so changing cwd here doesn't affect how build.js resolves
+    # them.
     result = subprocess.run(
         ['node', str(build_script), content_json_path, '--figs', figs_dir, '-o', docx_path],
-        capture_output=True, text=True
+        capture_output=True, text=True, cwd=str(_chapter_workspace(Path(chapter_dir)))
     )
     
     if result.returncode == 0:
@@ -386,32 +554,36 @@ def tool_run_structural_gates(content_json_path: str, figures_json_path: str) ->
     skill_dir = Path(ensure_skill_extracted())
     failures = []
     schema_ok = verify_ok = invariants_ok = True
+    # No explicit chapter_dir param here -- content.json's own parent folder
+    # is the chapter folder (see _skill_run_env's docstring for why this
+    # needs to be scoped at all).
+    run_env = _skill_run_env(str(Path(content_json_path).parent))
 
     # schema (content & figures)
     validate_script = skill_dir / 'tools' / 'validate.py'
     schema_content = skill_dir / 'schema' / 'content.schema.json'
     schema_figs = skill_dir / 'schema' / 'figures.schema.json'
-    
-    r1 = subprocess.run(['python3', str(validate_script), content_json_path, '--schema', str(schema_content)], capture_output=True, text=True)
+
+    r1 = subprocess.run(['python3', str(validate_script), content_json_path, '--schema', str(schema_content)], capture_output=True, text=True, env=run_env)
     if r1.returncode != 0:
         schema_ok = False
         failures.append(f"Content Schema: {r1.stderr}")
-        
-    r2 = subprocess.run(['python3', str(validate_script), figures_json_path, '--schema', str(schema_figs)], capture_output=True, text=True)
+
+    r2 = subprocess.run(['python3', str(validate_script), figures_json_path, '--schema', str(schema_figs)], capture_output=True, text=True, env=run_env)
     if r2.returncode != 0:
         schema_ok = False
         failures.append(f"Figures Schema: {r2.stderr}")
 
     # verify.py
     verify_script = skill_dir / 'tools' / 'verify.py'
-    r3 = subprocess.run(['python3', str(verify_script), content_json_path], capture_output=True, text=True)
+    r3 = subprocess.run(['python3', str(verify_script), content_json_path], capture_output=True, text=True, env=run_env)
     if r3.returncode != 0:
         verify_ok = False
         failures.append(f"Verify: {r3.stderr}")
 
     # invariants.py
     invariants_script = skill_dir / 'tools' / 'invariants.py'
-    r4 = subprocess.run(['python3', str(invariants_script), content_json_path], capture_output=True, text=True)
+    r4 = subprocess.run(['python3', str(invariants_script), content_json_path], capture_output=True, text=True, env=run_env)
     if r4.returncode != 0:
         invariants_ok = False
         failures.append(f"Invariants: {r4.stderr}")
@@ -439,15 +611,16 @@ def tool_run_quality_gates(content_json_path: str, chapter_dir: str) -> dict:
 
     pedagogy_ok = baseline_ok = True
     deltas = {}
+    run_env = _skill_run_env(chapter_dir)
 
-    r1 = subprocess.run(['python3', str(pedagogy_script), content_json_path], capture_output=True, text=True)
+    r1 = subprocess.run(['python3', str(pedagogy_script), content_json_path], capture_output=True, text=True, env=run_env)
     if r1.returncode != 0:
         pedagogy_ok = False
         deltas["pedagogy"] = r1.stderr
 
     # baseline.py's real signature is: baseline.py <docx> --content <content.json> [...]
     # (positional docx path, required --content flag) -- there is no --dir flag.
-    r2 = subprocess.run(['python3', str(baseline_script), docx_path, '--content', content_json_path], capture_output=True, text=True)
+    r2 = subprocess.run(['python3', str(baseline_script), docx_path, '--content', content_json_path], capture_output=True, text=True, env=run_env)
     if r2.returncode != 0:
         baseline_ok = False
         deltas["baseline"] = r2.stderr
@@ -475,8 +648,10 @@ def tool_run_document_qa(docx_path: str, content_json_path: str, do_pdf_check: b
     cmd = ['python3', str(qa_script), docx_path, '--content', content_json_path]
     if do_pdf_check:
         cmd.append('--pdf')  # qa.py's real flag is --pdf, not --pdf-check
-        
-    r = subprocess.run(cmd, capture_output=True, text=True)
+
+    # docx_path's own parent folder is the chapter folder -- see
+    # _skill_run_env's docstring for why this needs to be scoped at all.
+    r = subprocess.run(cmd, capture_output=True, text=True, env=_skill_run_env(str(Path(docx_path).parent)))
     return {
         "ok": r.returncode == 0,
         "issues": [r.stderr] if r.returncode != 0 else [],
@@ -607,6 +782,43 @@ COMPILER_TOOLS = [
     }
 ]
 
+WEB_ENRICHMENT_TOOLS = [
+    {
+        "name": "tool_web_search",
+        "description": "Search the web for educational material. You MUST pass at least one allowed domain.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The search query"},
+                "allowed_domains": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    # Built from config.WEB_SEARCH_ALLOWED_DOMAINS (the SAME list
+                    # _is_domain_allowed() actually enforces) so this description
+                    # can never drift from what the tool will really accept -- a
+                    # hardcoded list here previously advertised domains that were
+                    # then rejected, wasting the model's budget on doomed calls.
+                    "description": "List of domains to restrict the search to. Allowed: " + ", ".join(config.WEB_SEARCH_ALLOWED_DOMAINS)
+                },
+                "chapter_dir": {"type": "string", "description": "The current chapter directory"}
+            },
+            "required": ["query", "allowed_domains", "chapter_dir"]
+        }
+    },
+    {
+        "name": "tool_web_fetch",
+        "description": "Fetch the readable text content of a specific URL returned by tool_web_search.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "The URL to fetch (must be from the allowed domains)"},
+                "chapter_dir": {"type": "string", "description": "The current chapter directory"}
+            },
+            "required": ["url", "chapter_dir"]
+        }
+    }
+]
+
 
 # -----------------------------------------------------------------------------
 # Tool Registry
@@ -632,3 +844,7 @@ TOOL_REGISTRY = {
     'tool_view_figure': tool_view_figure,
     'tool_compile_docx': tool_compile_docx,
 }
+
+if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+    TOOL_REGISTRY['tool_web_search'] = tool_web_search
+    TOOL_REGISTRY['tool_web_fetch'] = tool_web_fetch
