@@ -885,6 +885,7 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
                 logger.warning(f"Could not save progress file: {e}")
 
         resolved_skill_dir = None
+        skill_check = None
         if not getattr(config, 'DEV_TOKEN_SAVER_MODE', False):
             # Skip in dev mode: DEV_TOKEN_SAVER_MODE's dummy prompt never
             # invokes /study-notes at all (see its own comment above), so
@@ -896,24 +897,33 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
             if skill_check["checked"]:
                 logger.info(f"Resolved skill dir: {skill_check['resolved']}")
                 resolved_skill_dir = Path(skill_check['resolved']) if skill_check.get('resolved') else None
-            if skill_check["checked"] and not skill_check["ok"]:
-                # TRUTH-CHECK, NOT SELF-REPORTED SUCCESS (see module docstring):
-                # a wrong skill can still produce a file at expected_docx by
-                # luck/hand-rolling (confirmed live -- see the plan/commit
-                # this check was added after), so this is checked BEFORE and
-                # INDEPENDENTLY of the expected_docx.exists() gate below, not
-                # folded into it.
-                logger.error(f"claude CLI resolved '/study-notes' to the WRONG skill "
-                              f"({skill_check['resolved']}), not one of the expected, "
-                              f"freshly-synced locations. Placing failure marker.")
-                (target_dir / config.FAILMARK).write_text(
-                    f"claude CLI's /study-notes invocation resolved to an unexpected skill "
-                    f"directory ({skill_check['resolved']}) instead of the project's own, "
-                    f"freshly-synced skill. This usually means a stale/misnamed skill is "
-                    f"shadowing the real one somewhere Claude Code scans for skills -- see "
-                    f"docs/cli-subprocess-plan.md.\n", encoding="utf-8")
-                progress_file.unlink(missing_ok=True)
-                return EXIT_FATAL
+
+        if not result["ok"]:
+            info = classify_cli_result(result)
+            if info["retry"]:
+                write_retry_epoch(info["retry_epoch"])
+                save_progress()
+                logger.warning(f"Pausing for retry ({info['reason']}). Progress kept for resume.")
+                return EXIT_RATE_LIMITED
+
+        if skill_check and skill_check["checked"] and not skill_check["ok"]:
+            # TRUTH-CHECK, NOT SELF-REPORTED SUCCESS (see module docstring):
+            # a wrong skill can still produce a file at expected_docx by
+            # luck/hand-rolling (confirmed live -- see the plan/commit
+            # this check was added after), so this is checked BEFORE and
+            # INDEPENDENTLY of the expected_docx.exists() gate below, not
+            # folded into it.
+            logger.error(f"claude CLI resolved '/study-notes' to the WRONG skill "
+                          f"({skill_check['resolved']}), not one of the expected, "
+                          f"freshly-synced locations. Placing failure marker.")
+            (target_dir / config.FAILMARK).write_text(
+                f"claude CLI's /study-notes invocation resolved to an unexpected skill "
+                f"directory ({skill_check['resolved']}) instead of the project's own, "
+                f"freshly-synced skill. This usually means a stale/misnamed skill is "
+                f"shadowing the real one somewhere Claude Code scans for skills -- see "
+                f"docs/cli-subprocess-plan.md.\n", encoding="utf-8")
+            progress_file.unlink(missing_ok=True)
+            return EXIT_FATAL
 
         if result["ok"] and expected_docx.exists():
             logger.info("Target docx confirmed. Placing success marker.")
@@ -956,14 +966,8 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
             progress_file.unlink(missing_ok=True)
             return EXIT_FATAL
 
-        # result["ok"] is False from here on.
+        # result["ok"] is False from here on. (Non-retryable fatal errors)
         info = classify_cli_result(result)
-        if info["retry"]:
-            write_retry_epoch(info["retry_epoch"])
-            save_progress()
-            logger.warning(f"Pausing for retry ({info['reason']}). Progress kept for resume.")
-            return EXIT_RATE_LIMITED
-
         logger.error(f"Fatal, non-retryable error during generation: {info['reason']}")
         (target_dir / config.FAILMARK).write_text(f"Fatal error: {info['reason']}\n", encoding="utf-8")
         progress_file.unlink(missing_ok=True)
