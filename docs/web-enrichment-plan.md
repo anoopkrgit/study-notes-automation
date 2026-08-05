@@ -179,6 +179,17 @@ pilot chapters are generated.
 
 ## Open items for next session
 
+- Still not empirically confirmed (2026-08-05 update): the first genuinely
+  successful live `--live` run (Physics-Ch5-Optics, after fixing an
+  unrelated skill-resolution bug that invalidated every earlier attempt --
+  see `docs/cli-subprocess-plan.md`'s "Resolved" section) had
+  `ENABLE_WEB_ENRICHMENT=1` and the tools available, but the model judged it
+  didn't need outside sources for that chapter and never called `WebSearch`/
+  `WebFetch` at all (no `_web-sources.txt` was written, correctly -- see
+  `write_web_sources_manifest()`, which only writes when a search/fetch
+  actually happened). That's valid behavior per this plan's own "discretionary,
+  not mandatory" design, but it means the domain-list/cap questions below are
+  still open -- a chapter that never searches can't exercise them.
 - Confirm the domain list/cap still look right after seeing a real
   `_web-sources.txt` audit trail from a handful of chapters.
 - Decide whether `ENABLE_WEB_ENRICHMENT` should default on or stay opt-in
