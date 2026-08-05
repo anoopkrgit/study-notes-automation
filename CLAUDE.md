@@ -82,7 +82,7 @@ packaged Claude Code skill at `templates/study-notes.skill`. That file is a **tr
 zip**, not a directory; there is no separate unpacked source tree in git. To edit its
 `SKILL.md` (or anything else inside), unzip it, edit, and re-zip in place — see the
 web-enrichment / skill-resolution-fix commit history for the exact unzip/edit/rezip
-approach (`_repackage_skill_dir()` in `stage2_cli.py` for the programmatic version).
+approach (`repackage_skill_dir()` in `src/common/skill_retro.py` for the programmatic version).
 `.claude/skills/` and `.skill-runtime/` in this repo are gitignored *local extraction
 caches* of that zip (`sync_skill_package()` in `stage2_cli.py`), not sources of truth.
 
@@ -102,9 +102,10 @@ directly (not relying on the model having invoked it) and writes `_retro-finding
 chapter folder if there are candidate skill improvements. `apply_retro_fixes()` (opt-in via
 `config.ENABLE_AUTO_SKILL_IMPROVEMENT`, off by default) can act on those automatically: a
 separate, bounded `claude -p` session edits a scratch copy of the skill, and `tools/regress.py`
-is independently re-run by `stage2_cli.py` itself as the accept/reject gate — a failing
-`regress.py` discards the attempt entirely; `templates/study-notes.skill` is only ever
-overwritten after an independently-confirmed pass.
+is independently re-run as the accept/reject gate — a failing `regress.py` discards the attempt
+entirely; `templates/study-notes.skill` is only ever overwritten after an independently-confirmed
+pass. Both functions (plus `repackage_skill_dir()`) live in `src/common/skill_retro.py` and are
+shared by BOTH the `subprocess` and `graph` Stage 2 implementations — one copy, not two.
 
 `DEV_TOKEN_SAVER_MODE` (set via `--stageN-mode llm-token-saver`) is a cost-safe smoke-test
 toggle honored by all three implementations: cheap model, dummy prompt/content, capped
@@ -122,10 +123,11 @@ real production run.
   history for `legacy`/`graph`, `claude` session id for `subprocess`).
 - Per-chapter marker files: `_hold` (not ready yet), `_notes_done` (success), `_notes_FAILED.txt`
   (non-retryable failure, needs a human), `_sources.txt`/`_web-sources.txt` (attribution
-  manifests — the latter is built from Claude Code's own session transcript, not the
-  model's self-report; see `write_web_sources_manifest()` in `stage2_cli.py`), and
-  `_retro-findings.txt` (candidate skill improvements from that chapter's `tools/retro.py`
-  run — see `capture_retro_findings()`/`apply_retro_fixes()` in `stage2_cli.py`).
+  manifests — the `subprocess` variant is built from Claude Code's own session transcript,
+  not the model's self-report; see `write_web_sources_manifest()` in `stage2_cli.py`, and the
+  `graph` variant of the same name in `stage2_graph.py`), and `_retro-findings.txt` (candidate
+  skill improvements from that chapter's `tools/retro.py` run — see `capture_retro_findings()`/
+  `apply_retro_fixes()` in `src/common/skill_retro.py`, shared by both implementations).
 - Source files are read-only: Stage 1 only ever *copies* into chapter folders, never
   moves/deletes from the incoming source directories.
 
@@ -137,8 +139,10 @@ via env vars, not code edits. Notable groups: base paths/models (top of file), t
 `STAGE1_IMPL`/`STAGE2_IMPL`/`DEV_TOKEN_SAVER_MODE` rollout switches, the `CLAUDE_*` block
 (subprocess-implementation CLI flags/timeouts, including `CLAUDE_SKILL_INSTALL_DIR` +
 `CLAUDE_SKILL_GLOBAL_INSTALL_DIR`, both kept in sync every run), the `ENABLE_WEB_ENRICHMENT`/
-`WEB_SEARCH_ALLOWED_DOMAINS`/`MAX_WEB_SEARCHES_PER_CHAPTER` block (bounded web search for
-the `subprocess` Stage 2 generator only — see `docs/web-enrichment-plan.md`), and
+`WEB_SEARCH_ALLOWED_DOMAINS`/`MAX_WEB_SEARCHES_PER_CHAPTER` block (bounded web search — see
+`docs/web-enrichment-plan.md`; wired into both the `subprocess` generator, via Claude Code's
+own `WebSearch`/`WebFetch` tools, and the `graph` generator, via `tool_web_search`/
+`tool_web_fetch` in `src/agents/tools.py`), and
 `ENABLE_AUTO_SKILL_IMPROVEMENT`/`AUTO_SKILL_IMPROVEMENT_WORKSPACE` (opt-in autonomous
 application of `retro.py` candidates, `regress.py`-gated — off by default).
 

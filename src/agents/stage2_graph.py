@@ -62,6 +62,10 @@ from src.func_tools_and_utils import (
     EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL,
     is_ignorable
 )
+# Shared with src/claude_cli_subprocess/stage2_cli.py -- see
+# src/common/skill_retro.py's module docstring.
+from src.common.skill_retro import capture_retro_findings, apply_retro_fixes
+from src.claude_cli_subprocess.stage2_cli import _chapter_workspace
 from src.agents.base import Stage2State, make_agent_node, get_checkpointer
 from src.agents.prompts import (
     author_system_prompt, figure_system_prompt, compiler_system_prompt,
@@ -72,7 +76,8 @@ from src.agents.tools import (
     tool_write_content_json, tool_write_figures_json, tool_read_qa_feedback,
     tool_figbuild, tool_view_figure, tool_compile_docx,
     tool_run_structural_gates, tool_run_quality_gates, tool_run_document_qa,
-    AUTHOR_TOOLS, FIGURE_TOOLS, COMPILER_TOOLS, TOOL_REGISTRY
+    AUTHOR_TOOLS, FIGURE_TOOLS, COMPILER_TOOLS, TOOL_REGISTRY,
+    WEB_ENRICHMENT_TOOLS
 )
 
 def ingest_node(state: Stage2State) -> dict:
@@ -115,10 +120,14 @@ def ingest_node(state: Stage2State) -> dict:
 # expensive model (config.GENERATOR_MODEL) -- writing the actual chapter
 # content is the one genuinely creative, open-ended step in this
 # flowchart, so it needs the most room and the most capable model.
+author_tools_list = list(AUTHOR_TOOLS)
+if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+    author_tools_list.extend(WEB_ENRICHMENT_TOOLS)
+
 author_node = make_agent_node(
     node_name='author',
     model_name=getattr(config, 'AUTHOR_MODEL', config.GENERATOR_MODEL),
-    tools_for_anthropic=AUTHOR_TOOLS,
+    tools_for_anthropic=author_tools_list,
     system_prompt_fn=author_system_prompt,
     max_agent_turns=25,
     tool_registry=TOOL_REGISTRY
@@ -317,6 +326,27 @@ def build_stage2_graph():
     })
     return graph
 
+# -----------------------------------------------------------------------------
+# RETRO / WEB ENRICHMENT HELPERS
+# -----------------------------------------------------------------------------
+
+def write_web_sources_manifest(target_dir: Path, web_sources: list[str]) -> None:
+    if not web_sources:
+        return
+    try:
+        lines = ["Web enrichment audit trail (docs/web-enrichment-plan.md).",
+                 "Built from the actual agent graph tool executions, not self-reported.",
+                 "", f"Pages fetched ({len(web_sources)}):"]
+        lines += [f"  - {u}" for u in web_sources] or ["  (none)"]
+        (target_dir / config.WEB_SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info(f"Wrote {config.WEB_SOURCES} ({len(web_sources)} fetch(es)).")
+    except Exception as e:
+        logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
+
+# -----------------------------------------------------------------------------
+# GRAPH RUNNER
+# -----------------------------------------------------------------------------
+
 def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int:
     """THE single entry point other code calls to run Stage 2's entire
     flowchart for one chapter, from start to finish, and get back a plain
@@ -417,6 +447,7 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
         with get_checkpointer(chapter_dir_str) as checkpointer:
             compiled = graph.compile(checkpointer=checkpointer)
             final_state = compiled.invoke(initial_state, config=thread_config)
+
     except Exception as e:
         # Something broke outside any individual node's own error handling
         # (e.g. the checkpoint database itself couldn't be opened) --
@@ -442,6 +473,32 @@ def run_stage2_chapter(chapter_dir, live_mode: bool, resume: bool = True) -> int
                 encoding="utf-8",
             )
             return EXIT_FATAL
+
+        # Post-run web-sources manifest + retrospective capture/auto-fix.
+        # Gated on a PROVEN-successful chapter (status done AND a real .docx),
+        # mirroring claude_cli_subprocess.stage2_cli's own
+        # `if result["ok"] and expected_docx.exists()` gate -- a failed or
+        # atypical run must never drive an autonomous skill mutation. Placed
+        # OUTSIDE the generation try/except above so a stray error in this
+        # best-effort post-processing can never flip an already-successful
+        # chapter to EXIT_FATAL (each helper is also internally best-effort).
+        target_dir = Path(chapter_dir)
+        # Where THIS chapter's .study-notes/run.jsonl actually lives -- a
+        # local scratch workspace, not target_dir itself (which is normally
+        # Drive-synced). See src/agents/tools.py's _skill_run_env, which
+        # scopes every skill-script subprocess call to this same folder.
+        chapter_workspace = _chapter_workspace(target_dir)
+        try:
+            if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+                write_web_sources_manifest(target_dir, final_state.get('web_sources', []))
+
+            retro = capture_retro_findings(target_dir, chapter_workspace,
+                                            resolved_skill_dir=Path(ensure_skill_extracted()))
+            if retro["ok"] and retro["candidates"] and getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
+                apply_retro_fixes(retro["candidates"], chapter_workspace)
+        except Exception as e:
+            logger.warning(f"Post-run retro/manifest step failed (chapter still OK): {e}")
+
         marker_path = Path(chapter_dir_str) / config.MARKER
         marker_path.touch()
         return EXIT_OK

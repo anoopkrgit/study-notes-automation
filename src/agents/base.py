@@ -68,6 +68,9 @@ class Stage2State(TypedDict):
     qa_pass_count: int          # how many times QA has run so far (bounds the retry loop)
     turn_count: int             # how many Claude round-trips have happened, in total
     attempt_count: int          # reserved for cross-process-restart retry counting
+    web_searches: int           # how many web searches have been performed in this chapter
+    web_fetches: int            # how many web pages have been fetched in this chapter
+    web_sources: list[str]      # URLs fetched successfully during this chapter's generation
     messages: dict[str, list]   # each agent's own conversation history, keyed by
                                  # agent name (e.g. messages["author"]) -- kept
                                  # separate so Author/Figure/Compiler don't see
@@ -203,12 +206,20 @@ def make_agent_node(
             # Resuming a previous run (e.g. after a QA retry, or a crash):
             # pick the conversation back up where it left off.
             messages = list(messages)
+            if messages[-1].get("role") == "assistant":
+                # To prevent Anthropic from treating this as a prefill (which crashes if
+                # the dummy/previous output ended with trailing whitespace), append a new user prompt.
+                messages.append({"role": "user", "content": "Please continue. If QA ran, review the QA feedback and address any issues."})
 
         chapter_dir = state.get('chapter_dir', '')
         chapter_basename = Path(chapter_dir).name if chapter_dir else 'unknown'
 
         turn_count = state.get('turn_count', 0)
         status = state.get('status', 'running')
+        
+        web_searches = state.get('web_searches', 0)
+        web_fetches = state.get('web_fetches', 0)
+        web_sources = list(state.get('web_sources', []))
 
         # ---------------------------------------------------------------
         # THE MAIN LOOP: one pass of this loop = one "turn" = one round
@@ -234,12 +245,14 @@ def make_agent_node(
                 # the NEXT turn (if there is one) has full context.
                 messages.append(response.model_dump(include={"role", "content"}))
 
-                if response.stop_reason == 'tool_use':
+                has_tool_use = any(getattr(b, 'type', None) == 'tool_use' for b in response.content)
+
+                if has_tool_use:
                     # Claude wants one or more tools run. `response.content`
                     # can contain several requests at once; go through each.
                     tool_results = []
                     for content_block in response.content:
-                        if content_block.type == 'tool_use':
+                        if getattr(content_block, 'type', None) == 'tool_use':
                             tool_name = content_block.name    # which tool, e.g. "tool_read_source"
                             tool_args = content_block.input   # the arguments Claude chose to pass it
                             tool_id = content_block.id         # links this result back to this specific request
@@ -262,7 +275,30 @@ def make_agent_node(
                                         # use this run's real chapter_dir
                                         # instead.
                                         tool_args = {**tool_args, 'chapter_dir': chapter_dir}
+                                    
+                                    # Track budget for web tools. Both searches and
+                                    # fetches are capped at the same
+                                    # MAX_WEB_SEARCHES_PER_CHAPTER value -- mirrors
+                                    # claude_cli_subprocess.stage2_cli.run_claude_cli,
+                                    # which sets CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION
+                                    # and CLAUDE_CODE_MAX_WEB_FETCHES_PER_SESSION to the
+                                    # same config value rather than treating fetches as a
+                                    # separate, larger budget.
+                                    if tool_name == 'tool_web_search':
+                                        if web_searches >= config.MAX_WEB_SEARCHES_PER_CHAPTER:
+                                            raise Exception("Budget exceeded: Maximum web searches for this chapter reached.")
+                                        web_searches += 1
+                                    elif tool_name == 'tool_web_fetch':
+                                        if web_fetches >= config.MAX_WEB_SEARCHES_PER_CHAPTER:
+                                            raise Exception("Budget exceeded: Maximum web fetches for this chapter reached.")
+                                        web_fetches += 1
+                                        
                                     result = tool_fn(**tool_args)
+                                    
+                                    if tool_name == 'tool_web_fetch' and 'url' in tool_args:
+                                        if tool_args['url'] not in web_sources:
+                                            web_sources.append(tool_args['url'])
+
                                     tool_results.append({
                                         "type": "tool_result",
                                         "tool_use_id": tool_id,
@@ -303,12 +339,20 @@ def make_agent_node(
                             "content": tool_results
                         })
 
-                elif response.stop_reason == 'end_turn' or response.stop_reason == 'stop_sequence':
+                elif response.stop_reason in ('end_turn', 'stop_sequence'):
                     # Claude replied with plain text and asked for NO tools --
                     # its signal that it believes this agent's job is done
                     # for now. Stop looping; the flowchart moves on to
                     # whichever node comes next.
                     break
+                else:
+                    # e.g. stop_reason == 'max_tokens' with no tool_use blocks.
+                    # We must append a user message so the next turn isn't treated
+                    # as a prefill which would crash on trailing whitespace.
+                    messages.append({
+                        "role": "user",
+                        "content": "Your response was truncated or ended unexpectedly. Please continue."
+                    })
 
             except Exception as exc:
                 # Something went wrong calling the API itself (rate limit,
@@ -360,6 +404,9 @@ def make_agent_node(
             debug_state['messages'] = new_messages_dict
             debug_state['turn_count'] = turn_count
             debug_state['status'] = status
+            debug_state['web_searches'] = web_searches
+            debug_state['web_fetches'] = web_fetches
+            debug_state['web_sources'] = web_sources
 
             try:
                 debug_path.parent.mkdir(parents=True, exist_ok=True)
@@ -376,7 +423,10 @@ def make_agent_node(
         return {
             "messages": {node_name: messages},
             "turn_count": turn_count,
-            "status": status
+            "status": status,
+            "web_searches": web_searches,
+            "web_fetches": web_fetches,
+            "web_sources": web_sources
         }
 
     return node_fn
