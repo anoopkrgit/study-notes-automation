@@ -276,14 +276,20 @@ def make_agent_node(
                                         # instead.
                                         tool_args = {**tool_args, 'chapter_dir': chapter_dir}
                                     
-                                    # Track budget for web tools
+                                    # Track budget for web tools. Both searches and
+                                    # fetches are capped at the same
+                                    # MAX_WEB_SEARCHES_PER_CHAPTER value -- mirrors
+                                    # claude_cli_subprocess.stage2_cli.run_claude_cli,
+                                    # which sets CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION
+                                    # and CLAUDE_CODE_MAX_WEB_FETCHES_PER_SESSION to the
+                                    # same config value rather than treating fetches as a
+                                    # separate, larger budget.
                                     if tool_name == 'tool_web_search':
-                                        if web_searches >= getattr(config, 'MAX_WEB_SEARCHES_PER_CHAPTER', 15):
+                                        if web_searches >= getattr(config, 'MAX_WEB_SEARCHES_PER_CHAPTER', 3):
                                             raise Exception("Budget exceeded: Maximum web searches for this chapter reached.")
                                         web_searches += 1
                                     elif tool_name == 'tool_web_fetch':
-                                        # For simplicity, fetching also counts against the global web tools budget, or its own implicit cap
-                                        if web_fetches >= getattr(config, 'MAX_WEB_SEARCHES_PER_CHAPTER', 15) * 3:
+                                        if web_fetches >= getattr(config, 'MAX_WEB_SEARCHES_PER_CHAPTER', 3):
                                             raise Exception("Budget exceeded: Maximum web fetches for this chapter reached.")
                                         web_fetches += 1
                                         

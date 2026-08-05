@@ -5,3 +5,4 @@ python-dotenv>=1.0.0
 openpyxl>=3.1.0
 langgraph>=0.2.0
 langgraph-checkpoint-sqlite>=1.0.0
+ddgs>=9.0.0  # web search backend for tool_web_search (src/agents/tools.py), only used when ENABLE_WEB_ENRICHMENT=1
