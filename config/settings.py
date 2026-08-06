@@ -160,7 +160,7 @@ CLAUDE_SKILL_INSTALL_DIR = LOCAL_RUNTIME_ROOT / ".claude" / "skills" / "study-no
 # templates/study-notes.skill, and global alone is enough for discovery regardless of
 # cwd since personal-scope skills are always scanned.
 CLAUDE_SKILL_GLOBAL_INSTALL_DIR = Path.home() / ".claude" / "skills" / "study-notes"
-CLAUDE_WORKSPACE_ROOT = LOCAL_RUNTIME_ROOT / "generation-workspace"  # per-chapter scratch subfolders
+CLAUDE_WORKSPACE_ROOT = STATE_DIR / "workspace"  # per-chapter scratch subfolders
 
 # ---------------------------------------------------------------------------
 # Bounded web enrichment for Stage 2 (docs/web-enrichment-plan.md). Opt-in
@@ -194,5 +194,5 @@ MAX_WEB_SEARCHES_PER_CHAPTER = int(os.environ.get("MAX_WEB_SEARCHES_PER_CHAPTER"
 # templates/study-notes.skill changes.
 # ---------------------------------------------------------------------------
 ENABLE_AUTO_SKILL_IMPROVEMENT = os.environ.get("ENABLE_AUTO_SKILL_IMPROVEMENT", "0") == "1"
-AUTO_SKILL_IMPROVEMENT_WORKSPACE = LOCAL_RUNTIME_ROOT / "generation-workspace" / "_skill_improvement"
+AUTO_SKILL_IMPROVEMENT_WORKSPACE = CLAUDE_WORKSPACE_ROOT / "_skill_improvement"
 AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS = int(os.environ.get("AUTO_SKILL_IMPROVEMENT_TIMEOUT_SECONDS", "1800"))

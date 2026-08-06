@@ -89,7 +89,7 @@ caches* of that zip (`sync_skill_package()` in `stage2_cli.py`), not sources of 
 `sync_skill_package()` extracts to **two** locations every run, not one:
 `config.CLAUDE_SKILL_INSTALL_DIR` (project-local) and `config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR`
 (`~/.claude/skills/study-notes`, user-level). This is deliberate, not redundant: project-local
-skill discovery from `run_claude_cli()`'s nested `generation-workspace/<chapter>` cwd was
+skill discovery from `run_claude_cli()`'s nested `state/workspace/<chapter>` cwd was
 confirmed unreliable on a real live run (root-caused to this repo's `.claude/` being
 gitignored) — `/study-notes` silently fuzzy-resolved to an unrelated stale global skill
 instead of failing loudly. `verify_resolved_skill()` is the truth-check for this: it reads
