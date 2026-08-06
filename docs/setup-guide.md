@@ -43,6 +43,36 @@ nodejs libreoffice poppler-utils`.
 names/numbers from it. If it's absent, classification still works correctly using
 the built-in chapter maps in `src/func_classify_and_rename.py`.
 
+### Native Windows (no WSL)
+
+The pipeline runs on native Windows too — the file/lock code branches per-OS
+automatically (`src/common/skill_package.py` uses `msvcrt` instead of `fcntl`,
+and `func_tools_and_utils.tool_bash` services `ls`/`cat`/`cp`/`mv`/`mkdir` in
+Python since those coreutils have no `.exe`). What still has to be installed by
+hand are the two external converters, which have native Windows builds:
+
+- **LibreOffice** (provides `soffice`, for SVG→PDF diagram conversion):
+  `winget install TheDocumentFoundation.LibreOffice`
+- **Poppler** (provides `pdftoppm`, for PDF→PNG conversion and the page-by-page
+  visual accuracy check): `winget install oschwartz10612.Poppler` (or download
+  "poppler-for-windows" and add its `bin\` to PATH). There is no official winget
+  package name guarantee here — if that id fails, install manually and add the
+  extracted `poppler-*\Library\bin` folder to your `PATH`.
+
+The `subprocess.run(["pdftoppm", ...])` / `["soffice", ...]` calls need **no
+code change**: Python's `subprocess` on Windows resolves `pdftoppm.exe` /
+`soffice.exe` from `PATH` (via `CreateProcess` + `PATHEXT`). Verify both resolve
+in a fresh terminal after install:
+
+```powershell
+where.exe pdftoppm
+where.exe soffice
+```
+
+If `where.exe` finds them but a run still can't, open a **new** terminal so the
+updated `PATH` is picked up. You also need the `claude` CLI and `git` on PATH
+(see the runner's own setup for those).
+
 ## Sudo Passwordless Remount Setup
 
 `scripts/install.sh` sets this up automatically (it will prompt for your sudo password

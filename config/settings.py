@@ -1,5 +1,6 @@
 # Configuration file for Study Notes Automation Pipeline
 import os
+import platform
 from pathlib import Path
 
 # Base Paths — auto-detected from this file's location (config/settings.py → project root)
@@ -30,9 +31,18 @@ RETRY_EPOCH_FILE = STATE_DIR / "retry-epoch.txt"
 CHAPTER_PROGRESS_DIR = STATE_DIR / "progress"
 
 # Default Target Folders (Can be overridden by env vars)
-DEFAULT_TRANSCRIPT_SRC = Path(os.environ.get("TRANSCRIPT_SRC", "/mnt/g/My Drive/Education/Student/Lecture-Downloads"))
-DEFAULT_COLLECTED_SRC  = Path(os.environ.get("COLLECTED_SRC",  "/mnt/g/My Drive/Education/Student/Study-Programme/Collected-Study-Materials"))
-DEFAULT_TARGET_ROOT    = Path(os.environ.get("TARGET_ROOT",    "/mnt/g/My Drive/Education/Student/Study-Programme/AI-Chapter-Notes"))
+# These defaults only apply to users running study-notes-automation DIRECTLY.
+# When driven by the runner (run-claude-agent), paths_config.py exports
+# TRANSCRIPT_SRC/COLLECTED_SRC/TARGET_ROOT first, so the env-var branch wins
+# and these literals are never used. The Google Drive mount lives at /mnt/g on
+# WSL/Linux but at the G: drive on native Windows, so branch the default root
+# per-OS -- otherwise a direct Windows user gets an unusable /mnt/g path.
+_GDRIVE_ROOT = "G:/My Drive" if platform.system() == "Windows" else "/mnt/g/My Drive"
+_EDU_ROOT = f"{_GDRIVE_ROOT}/Education/Student"
+
+DEFAULT_TRANSCRIPT_SRC = Path(os.environ.get("TRANSCRIPT_SRC", f"{_EDU_ROOT}/Lecture-Downloads"))
+DEFAULT_COLLECTED_SRC  = Path(os.environ.get("COLLECTED_SRC",  f"{_EDU_ROOT}/Study-Programme/Collected-Study-Materials"))
+DEFAULT_TARGET_ROOT    = Path(os.environ.get("TARGET_ROOT",    f"{_EDU_ROOT}/Study-Programme/AI-Chapter-Notes"))
 
 # Tunables
 IDLE_DAYS = 14

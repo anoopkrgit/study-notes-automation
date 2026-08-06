@@ -41,6 +41,8 @@ import hashlib
 import json
 import logging
 import os
+import platform
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -466,6 +468,99 @@ def tool_grep(pattern: str, file_path: str) -> str:
 
 ALLOWED_BASH_COMMANDS = {"python3", "python", "node", "soffice", "mkdir", "ls", "cat", "cp", "mv"}
 
+# These coreutils are on PATH on Linux/macOS but have NO executable on native
+# Windows (they are shell/cmd builtins or simply absent), so shelling out to
+# them via subprocess raises FileNotFoundError there. On Windows we service
+# them directly in Python instead (see _run_windows_builtin), so tool_bash
+# behaves identically on every OS. `soffice`/`python`/`node` are real .exe's
+# on Windows PATH and continue to run through subprocess.
+_WINDOWS_BUILTIN_COMMANDS = {"ls", "cat", "cp", "mv", "mkdir"}
+_IS_WINDOWS = platform.system() == "Windows"
+
+
+def _run_windows_builtin(args: list, cwd: str) -> str:
+    """Emulate the handful of Unix coreutils (ls/cat/cp/mv/mkdir) that have no
+    executable on native Windows, using pure Python so tool_bash works there.
+
+    `args` is the already-shlex-split, validated command (args[0] is the tool
+    name). Relative paths are resolved against `cwd`, mirroring how subprocess
+    would run the real binary. Returns the same kind of text status string
+    tool_bash returns for the subprocess path."""
+    name, rest = args[0], args[1:]
+    base = Path(cwd)
+
+    def _resolve(p: str) -> Path:
+        pp = Path(p)
+        return pp if pp.is_absolute() else base / pp
+
+    try:
+        if name == "ls":
+            targets = [a for a in rest if not a.startswith("-")]
+            paths = [_resolve(t) for t in targets] or [base]
+            lines = []
+            multi = len(paths) > 1
+            for path in paths:
+                if not path.exists():
+                    lines.append(f"ls: cannot access '{path}': No such file or directory")
+                    continue
+                if path.is_dir():
+                    if multi:
+                        lines.append(f"{path}:")
+                    lines.extend(sorted(os.listdir(path)))
+                else:
+                    lines.append(str(path))
+            out = "\n".join(lines)
+            return out if out.strip() else "Command executed cleanly (no output)."
+
+        if name == "cat":
+            files = [a for a in rest if not a.startswith("-")]
+            if not files:
+                return "Error: cat expects one or more file paths."
+            chunks = []
+            for f in files:
+                path = _resolve(f)
+                if not path.exists():
+                    return f"cat: {path}: No such file or directory"
+                chunks.append(path.read_text(encoding="utf-8", errors="replace"))
+            out = "".join(chunks)
+            return out if out.strip() else "Command executed cleanly (no output)."
+
+        if name == "cp":
+            recursive = any(a in ("-r", "-R", "--recursive") for a in rest)
+            operands = [a for a in rest if not a.startswith("-")]
+            if len(operands) != 2:
+                return "Error: cp expects exactly SRC and DST (flags aside)."
+            src, dst = _resolve(operands[0]), _resolve(operands[1])
+            if src.is_dir():
+                if not recursive:
+                    return f"cp: -r not specified; omitting directory '{src}'"
+                shutil.copytree(src, dst / src.name if dst.is_dir() else dst)
+            else:
+                shutil.copy2(src, dst)
+            return "Command executed cleanly (no output)."
+
+        if name == "mv":
+            operands = [a for a in rest if not a.startswith("-")]
+            if len(operands) != 2:
+                return "Error: mv expects exactly SRC and DST."
+            src, dst = _resolve(operands[0]), _resolve(operands[1])
+            shutil.move(str(src), str(dst))
+            return "Command executed cleanly (no output)."
+
+        if name == "mkdir":
+            parents = any(a in ("-p", "--parents") for a in rest)
+            dirs = [a for a in rest if not a.startswith("-")]
+            if not dirs:
+                return "Error: mkdir expects at least one directory path."
+            for d in dirs:
+                _resolve(d).mkdir(parents=parents, exist_ok=parents)
+            return "Command executed cleanly (no output)."
+    except OSError as e:
+        return f"Execution error: {e}"
+
+    return f"Error: Command '{name}' is not in the allowed command list."
+
+
 def tool_bash(command: str, cwd: str = ".") -> str:
     """Execute ONE restricted, single command (no shell chaining) with
     security sanitization.
@@ -500,6 +595,10 @@ def tool_bash(command: str, cwd: str = ".") -> str:
         return "Error: Empty command."
     if args[0] not in ALLOWED_BASH_COMMANDS:
         return f"Error: Command '{args[0]}' is not in the allowed command list."
+    # On native Windows the Unix coreutils have no executable to shell out to,
+    # so service them in Python instead (identical result, no subprocess).
+    if _IS_WINDOWS and args[0] in _WINDOWS_BUILTIN_COMMANDS:
+        return _run_windows_builtin(args, cwd)
     try:
         res = subprocess.run(args, shell=False, cwd=cwd, capture_output=True, text=True, timeout=300)
         out = res.stdout + ("\nSTDERR:\n" + res.stderr if res.stderr else "")
