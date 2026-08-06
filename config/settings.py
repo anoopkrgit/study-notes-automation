@@ -4,7 +4,22 @@ from pathlib import Path
 
 # Base Paths — auto-detected from this file's location (config/settings.py → project root)
 # Works from any clone location on any machine, no manual editing required.
-LOCAL_RUNTIME_ROOT = Path(__file__).resolve().parent.parent
+# Also works unmodified when installed as a pip dependency (e.g. by
+# run-claude-agent), because config/, src/, and templates/ are installed as
+# siblings under one root (see pyproject.toml's packaging note) -- so this
+# still resolves to the right place without needing the override below.
+#
+# STUDY_NOTES_RUNTIME_ROOT overrides this for callers that want
+# logs/state/generation-workspace written somewhere else entirely (e.g. a
+# user-writable dir instead of inside site-packages). Note this ALSO moves
+# where the skill zip is expected (CLAUDE_SKILL_SOURCE_GLOB is resolved
+# relative to this same root) -- only set it if templates/*.skill actually
+# exists at the new location too.
+LOCAL_RUNTIME_ROOT = (
+    Path(os.environ["STUDY_NOTES_RUNTIME_ROOT"])
+    if os.environ.get("STUDY_NOTES_RUNTIME_ROOT")
+    else Path(__file__).resolve().parent.parent
+)
 
 LOG_DIR = LOCAL_RUNTIME_ROOT / "logs"
 STATE_DIR = LOCAL_RUNTIME_ROOT / "state"

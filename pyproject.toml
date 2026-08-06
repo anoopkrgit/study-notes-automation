@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "study-notes-automation"
+version = "0.1.0"
+description = "Unattended pipeline that turns lecture transcripts and reference material into print-ready study-notes .docx files"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.18.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "python-dotenv>=1.0.0",
+    "openpyxl>=3.1.0",
+    "langgraph>=0.2.0",
+    "langgraph-checkpoint-sqlite>=1.0.0",
+    "ddgs>=9.0.0",
+]
+
+# PACKAGING NOTE FOR FUTURE MAINTAINERS
+# ---------------------------------------------------------------------------
+# This repo's code was never written with packaging in mind: config/settings.py
+# is imported everywhere as a BARE top-level module ("import settings as
+# config", not "from config import settings"), and it computes
+# LOCAL_RUNTIME_ROOT as "two directories above my own __file__" -- i.e. it
+# assumes config/, src/, and templates/ are always siblings under one root
+# (true both for a git clone AND, given the layout below, for a pip install).
+#
+# `packages` below deliberately keeps config/, src/ (+ subpackages), and
+# templates/ installed as siblings under the SAME root, preserving that
+# exact nesting -- confirmed empirically (built a real wheel, installed it,
+# and inspected LOCAL_RUNTIME_ROOT's resolved value) that this makes the
+# skill-zip glob (config.LOCAL_RUNTIME_ROOT.glob(config.CLAUDE_SKILL_SOURCE_GLOB)
+# in src/claude_cli_subprocess/stage2_cli.py and src/common/skill_retro.py)
+# resolve correctly with ZERO changes to any of that path-computation logic.
+#
+# `config` has no __init__.py (matches the original repo -- it's just a
+# directory containing settings.py, never imported as "config.settings").
+# A consumer that wants the bare "import settings" to work needs to put
+# the installed config/ directory itself onto sys.path before importing it
+# -- exactly what src/main.py already does for a git clone. See
+# run-claude-agent's bootstrap for the installed-package equivalent.
+[tool.setuptools]
+packages = [
+    "config",
+    "src",
+    "src.agents",
+    "src.direct_api",
+    "src.claude_cli_subprocess",
+    "src.common",
+    "templates",
+]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+config = "config"
+src = "src"
+templates = "templates"
+
+[tool.setuptools.package-data]
+templates = ["*.skill"]
