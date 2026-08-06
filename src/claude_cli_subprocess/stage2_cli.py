@@ -544,8 +544,11 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
 
     if p.returncode != 0 or is_error:
         error_text = result_text or (p.stderr or "").strip() or combined.strip()
+        subtype = envelope.get("subtype")
         logger.warning(f"claude CLI call did not succeed cleanly "
-                        f"(returncode={p.returncode}, is_error={is_error}): {error_text[:500]}")
+                        f"(returncode={p.returncode}, is_error={is_error}, "
+                        f"subtype={subtype}, total_cost_usd={total_cost_usd}): "
+                        f"{error_text[:200]}")
         return {"ok": False, "result": result_text, "session_id": session_id,
                 "total_cost_usd": total_cost_usd, "error": error_text,
                 "returncode": p.returncode, "raw_stdout": p.stdout or ""}
@@ -591,6 +594,21 @@ def classify_cli_result(result: dict) -> dict:
     if is_usage_limit(error_text):
         return {"retry": True, "retry_epoch": now + config.CLAUDE_RETRY_EPOCH_DEFAULT_SECONDS,
                 "reason": f"claude CLI usage limit detected: {error_text[:300]}"}
+
+    if "error_max_budget_usd" in error_text:
+        # The --max-budget-usd ceiling (DEV_TOKEN_SAVER_MAX_BUDGET_USD, applied
+        # in token-saver mode) stopped the run. Not a failure of the pipeline
+        # itself -- surface a plain message with the amount it was about to
+        # spend and the cap it hit, instead of dumping the raw result JSON.
+        cost = result.get("total_cost_usd")
+        spent = f"${cost:.4f}" if isinstance(cost, (int, float)) else "an unknown amount"
+        cap = config.DEV_TOKEN_SAVER_MAX_BUDGET_USD
+        return {"retry": False, "retry_epoch": None,
+                "reason": (f"claude CLI stopped at the ${cap} spend cap "
+                           f"(--max-budget-usd); it was about to spend {spent}. "
+                           f"This is expected in token-saver mode -- raise "
+                           f"DEV_TOKEN_SAVER_MAX_BUDGET_USD, or drop "
+                           f"--stage2-mode llm-token-saver for a real run.")}
 
     # Unrecognized error shape: default to FATAL (see docstring's judgment
     # call above). Logged in full so classify_cli_result()'s patterns can

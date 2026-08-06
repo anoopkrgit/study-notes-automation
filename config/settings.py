@@ -131,20 +131,20 @@ ESCALATE_MODEL = os.environ.get("ASSEMBLE_ESCALATE_MODEL", "claude-sonnet-5")
 # asks the model itself to do less work. Applied together with a dummy
 # prompt and skipped escalation (see src/claude_cli_subprocess/stage1_cli.py).
 #
-# 0.10, not 0.02: confirmed live (Stage 2 pilot verification) that a
+# 0.20, not 0.02: confirmed live (Stage 2 pilot verification) that a
 # single dev-mode `claude -p` session has a cost floor somewhere above
-# $0.02 regardless of tool grants or prompt brevity -- two real calls hit
-# `error_max_budget_usd` at $0.145 (full production --allowedTools) and
-# $0.048 (empty --allowedTools) respectively, with input/output_tokens
-# both reported as 0 in the usage object either way (the actual cost
-# driver isn't itemized there). At $0.02 the budget check fires on every
-# single dev-mode call before the session can finish, meaning the
-# "success" code path of DEV_TOKEN_SAVER_MODE was never actually
-# reachable -- only the failure/retry path ever got exercised, defeating
-# the point of a wiring smoke test. $0.10 sits comfortably above the
-# observed floor while remaining a tiny fraction of a real generation
-# run's cost.
-DEV_TOKEN_SAVER_MAX_BUDGET_USD = os.environ.get("DEV_TOKEN_SAVER_MAX_BUDGET_USD", "0.10")
+# $0.02 regardless of tool grants or prompt brevity -- real calls have hit
+# `error_max_budget_usd` at $0.048 (empty --allowedTools), $0.145 (full
+# production --allowedTools) and $0.176 (native-Windows first run), with
+# input/output_tokens both reported as 0 in the usage object either way
+# (the actual cost driver isn't itemized there). At $0.02 the budget check
+# fires on every single dev-mode call before the session can finish,
+# meaning the "success" code path of DEV_TOKEN_SAVER_MODE was never
+# actually reachable -- only the failure/retry path ever got exercised,
+# defeating the point of a wiring smoke test. $0.20 sits above the highest
+# observed floor (~$0.176) while remaining a tiny fraction of a real
+# generation run's cost. Override with DEV_TOKEN_SAVER_MAX_BUDGET_USD.
+DEV_TOKEN_SAVER_MAX_BUDGET_USD = os.environ.get("DEV_TOKEN_SAVER_MAX_BUDGET_USD", "0.20")
 DEV_TOKEN_SAVER_EFFORT = os.environ.get("DEV_TOKEN_SAVER_EFFORT", "low")
 
 # ---------------------------------------------------------------------------
