@@ -63,4 +63,4 @@ def is_usage_limit(text: str) -> bool:
         return True
     return any(s in low for s in
                ("usage limit", "rate limit", "5-hour", "limit reached",
-                "too many requests", "quota exceeded"))
+                "too many requests", "quota exceeded", "session limit"))

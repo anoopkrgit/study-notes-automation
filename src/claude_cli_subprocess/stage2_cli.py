@@ -827,8 +827,29 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
 
         # result["ok"] is False from here on. (Non-retryable fatal errors)
         info = classify_cli_result(result)
-        logger.error(f"Fatal, non-retryable error during generation: {info['reason']}")
-        (target_dir / config.FAILMARK).write_text(f"Fatal error: {info['reason']}\n", encoding="utf-8")
+        # Surface the session_id even though we're not auto-retrying: a
+        # "FATAL" classification is a best-effort guess from error-text
+        # pattern matching (classify_cli_result()'s own judgment call is to
+        # default unrecognized error shapes to FATAL rather than assume
+        # they're safe to retry), and that guess can be wrong -- see the
+        # "session limit" incident this comment was added after, where a
+        # genuinely resumable, real-money session got its progress file
+        # deleted below with no record of the session_id anywhere. Logging
+        # and persisting it here means a human can always force a manual
+        # resume (seed state/progress/<chapter>.json with this id) without
+        # having to go spelunking through Claude Code's own raw local
+        # transcripts under ~/.claude/projects/.
+        last_session_id = result.get("session_id") or session_id
+        logger.error(f"Fatal, non-retryable error during generation: {info['reason']}"
+                      + (f" (last claude session_id: {last_session_id} -- if this looks "
+                         f"retryable, seed {progress_file} with "
+                         f'{{"session_id": "{last_session_id}", "attempts": {attempts}}} '
+                         f"and re-run to resume it manually)" if last_session_id else ""))
+        (target_dir / config.FAILMARK).write_text(
+            f"Fatal error: {info['reason']}\n"
+            + (f"Last known claude CLI session_id (for a manual resume, if this was "
+               f"actually retryable): {last_session_id}\n" if last_session_id else ""),
+            encoding="utf-8")
         progress_file.unlink(missing_ok=True)
         return EXIT_FATAL
     except Exception as e:
