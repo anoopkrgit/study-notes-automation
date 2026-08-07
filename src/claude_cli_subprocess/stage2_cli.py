@@ -59,13 +59,27 @@ from src.common.skill_retro import (
 def _latest_session_transcript(workspace: Path) -> Path:
     """Locate the newest local Claude Code session transcript JSONL for a
     given subprocess cwd (workspace). Claude Code names each project's
-    transcript folder after that project's working directory, with every
-    "/" swapped for "-", under ~/.claude/projects/. Shared by every
+    transcript folder after that project's working directory, with path
+    separators swapped for "-", under ~/.claude/projects/. Shared by every
     transcript reader in this module (_heartbeat_summary(),
     write_web_sources_manifest(), verify_resolved_skill()) so this lookup
     lives in exactly one place. Returns None if no transcript exists yet.
+
+    Windows note: the exact folder-naming transform Claude Code's own
+    (Node.js) implementation applies to a native Windows path (backslashes,
+    a drive letter + colon) isn't independently confirmed here -- swapping
+    both "\\" and "/" for "-" and dropping ":" is the natural mirror of the
+    POSIX "/" case this originally only handled, not a verified spec. This
+    is a best-effort progress indicator only (see _heartbeat_summary()'s
+    docstring): if the guess is wrong, this just returns None and the
+    caller falls back to a generic status string -- it never affects the
+    actual generation result.
     """
-    project_dir = Path.home() / ".claude" / "projects" / str(workspace.resolve().absolute()).replace("/", "-")
+    resolved = str(workspace.resolve().absolute())
+    mangled = resolved.replace("\\", "-").replace("/", "-").replace(":", "")
+    project_dir = Path.home() / ".claude" / "projects" / mangled
+    if not project_dir.is_dir():
+        return None
     candidates = sorted(project_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
     return candidates[0] if candidates else None
 
@@ -471,6 +485,7 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
     deadline = start + (timeout_seconds or config.CLAUDE_CLI_TIMEOUT_SECONDS)
     heartbeat_seconds = max(1, getattr(config, 'CLAUDE_CLI_HEARTBEAT_SECONDS', 120))
     last_heartbeat_msg = None
+    last_heartbeat_log_at = start
     stdout_data = stderr_data = None
     timed_out = False
     while True:
@@ -485,12 +500,23 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
             # Not done yet -- log a short status line (skipping it if
             # nothing's changed since last time, to keep the log minimal
             # rather than repeating the same "still working" line every
-            # couple of minutes for a step that takes a while).
-            elapsed = int(time.monotonic() - start)
+            # couple of minutes for a step that takes a while). ALSO force a
+            # line at least every 5 heartbeat intervals even if the message
+            # is unchanged: _heartbeat_summary() can genuinely return the
+            # same string for a long stretch of real progress (e.g. one long
+            # tool call), and on top of that its transcript lookup is a
+            # best-effort guess on native Windows (see
+            # _latest_session_transcript()'s docstring) that may never
+            # resolve -- without this, either case would go completely
+            # silent for up to the full CLAUDE_CLI_TIMEOUT_SECONDS, which
+            # reads as "stuck" even when it isn't.
+            now = time.monotonic()
+            elapsed = int(now - start)
             msg = _heartbeat_summary(workspace)
-            if msg != last_heartbeat_msg:
+            if msg != last_heartbeat_msg or (now - last_heartbeat_log_at) >= heartbeat_seconds * 5:
                 logger.info(f"claude CLI still working on '{target_dir.name}' ({elapsed}s elapsed): {msg}")
                 last_heartbeat_msg = msg
+                last_heartbeat_log_at = now
             continue
 
     if timed_out:
