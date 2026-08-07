@@ -38,6 +38,7 @@ import time
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import settings as config
 from src.func_tools_and_utils import (
@@ -65,18 +66,26 @@ def _latest_session_transcript(workspace: Path) -> Path:
     write_web_sources_manifest(), verify_resolved_skill()) so this lookup
     lives in exactly one place. Returns None if no transcript exists yet.
 
-    Windows note: the exact folder-naming transform Claude Code's own
-    (Node.js) implementation applies to a native Windows path (backslashes,
-    a drive letter + colon) isn't independently confirmed here -- swapping
-    both "\\" and "/" for "-" and dropping ":" is the natural mirror of the
-    POSIX "/" case this originally only handled, not a verified spec. This
-    is a best-effort progress indicator only (see _heartbeat_summary()'s
-    docstring): if the guess is wrong, this just returns None and the
-    caller falls back to a generic status string -- it never affects the
-    actual generation result.
+    Windows note: the transform is now CONFIRMED against real on-disk
+    directories, not guessed. Claude Code maps EVERY path separator and the
+    drive colon to "-", so "C:\\Users\\x" becomes "C--Users-x" -- the colon
+    contributes its own dash, which is why real directories start with a
+    DOUBLE dash after the drive letter.
+
+    This previously dropped the colon instead of replacing it
+    ("C-Users-x"), so on native Windows the computed path never matched and
+    this function returned None on every single call. That silently disabled
+    all four of its callers: _heartbeat_summary() (hence a run that logged
+    "starting up" for its entire duration), write_web_sources_manifest(),
+    write_run_diagnostics(), and -- most seriously -- verify_resolved_skill(),
+    the FATAL wrong-skill check, which reported checked=False and therefore
+    could never fire on Windows. See docs/stage2-token-burn-postmortem.md.
+
+    POSIX is unaffected: there is no colon in a POSIX path, so that replace
+    is a no-op and a leading "/" still becomes a leading "-".
     """
     resolved = str(workspace.resolve().absolute())
-    mangled = resolved.replace("\\", "-").replace("/", "-").replace(":", "")
+    mangled = resolved.replace("\\", "-").replace("/", "-").replace(":", "-")
     project_dir = Path.home() / ".claude" / "projects" / mangled
     if not project_dir.is_dir():
         return None
@@ -137,13 +146,22 @@ def _heartbeat_summary(workspace: Path) -> str:
         return "working"
 
 
-def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
-    """Best-effort audit trail for bounded web enrichment
-    (docs/web-enrichment-plan.md, guardrail 4): scan Claude Code's own local
-    session transcript JSONL -- the SAME file _heartbeat_summary() above
-    reads, just the whole thing instead of only the tail -- for every
-    WebSearch/WebFetch tool_use block actually issued, and write
-    target_dir/config.WEB_SOURCES listing them.
+def _domain_of(url: str) -> str:
+    """Bare hostname of `url`, for the manifest's domain tally. Kept tiny and
+    exception-free -- a malformed URL degrades to "" rather than aborting the
+    audit trail it feeds."""
+    try:
+        return urlparse(url).netloc or ""
+    except Exception:
+        return ""
+
+
+def write_web_sources_manifest(target_dir: Path, workspace: Path, enabled: bool = True) -> None:
+    """Audit trail for bounded web enrichment (docs/web-enrichment-plan.md,
+    guardrail 4): scan Claude Code's own local session transcript JSONL -- the
+    SAME file _heartbeat_summary() above reads, just the whole thing instead of
+    only the tail -- for every WebSearch/WebFetch tool_use block actually
+    issued, and write target_dir/config.WEB_SOURCES.
 
     Deliberately built from the transcript, not from asking the model to
     self-report what it searched: consistent with this module's
@@ -152,17 +170,139 @@ def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
     wrong, but it can't fake tool_use blocks Claude Code never actually
     recorded.
 
+    ALWAYS WRITES A FILE, INCLUDING THE NEGATIVE CASES. Three genuinely
+    different outcomes used to collapse into one indistinguishable silence
+    (no file, no log line), which is how a real live run's "web research was
+    not used -- the transcripts were sufficient" ended up being believed when
+    the truth was that the tools had never been granted:
+
+      DISABLED           config.ENABLE_WEB_ENRICHMENT was off; tools never granted
+      ENABLED, 0 used    tools were available; the model chose not to search
+      ENABLED, N used    full audit trail
+
+    `enabled` is what the caller actually granted for this run (NOT re-read
+    from config here -- the caller is the authority on what it passed to
+    run_claude_cli, and re-reading could disagree with it).
+
     Silent-on-failure, same as _heartbeat_summary(): an unreadable or
-    missing transcript means no manifest gets written, never a failed
-    chapter -- this is an audit convenience, not something generation
-    should ever be gated on.
+    missing transcript means a best-effort file, never a failed chapter --
+    this is an audit convenience, not something generation should ever be
+    gated on.
     """
+    try:
+        searches, fetches, fetched_chars = [], [], 0
+        transcript = _latest_session_transcript(workspace)
+
+        if transcript is not None:
+            # First pass collects the WebFetch tool_use ids so the second pass
+            # can attribute returned content back to them: "chars ingested" is
+            # the quantity of outside material that actually entered the
+            # document's context, which is the number that says whether web
+            # research contributed anything (a search that returns nothing
+            # usable and a search that pulls in 40k chars are both "1 search").
+            fetch_ids = set()
+            with open(transcript, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line.startswith("{"):
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except Exception:
+                        continue
+                    content = entry.get("message", {}).get("content")
+                    if not isinstance(content, list):
+                        continue
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+                        btype = block.get("type")
+                        if btype == "tool_use":
+                            name = block.get("name")
+                            tool_input = block.get("input") or {}
+                            # Defensive parsing: if tool_input isn't a dict (e.g. model
+                            # hallucinated a string), skip to avoid aborting the audit trail
+                            if not isinstance(tool_input, dict):
+                                continue
+                            if name == "WebSearch":
+                                query = tool_input.get("query", "")
+                                domains = (tool_input.get("allowed_domains")
+                                           or tool_input.get("blocked_domains"))
+                                searches.append(f"{query} (domains: {domains})" if domains else query)
+                            elif name == "WebFetch":
+                                fetches.append(tool_input.get("url", ""))
+                                if block.get("id"):
+                                    fetch_ids.add(block["id"])
+                        elif btype == "tool_result" and block.get("tool_use_id") in fetch_ids:
+                            payload = block.get("content")
+                            if isinstance(payload, str):
+                                fetched_chars += len(payload)
+                            elif isinstance(payload, list):
+                                for part in payload:
+                                    if isinstance(part, dict):
+                                        fetched_chars += len(part.get("text") or "")
+
+        domains = sorted({d for d in (_domain_of(u) for u in fetches) if d})
+
+        if not enabled:
+            status = ("Web enrichment: OFF (config.ENABLE_WEB_ENRICHMENT=0) | "
+                      "WebSearch/WebFetch were NOT granted to this run")
+        else:
+            status = (f"Web enrichment: ON | {len(searches)} search(es) | "
+                      f"{len(fetches)} fetch(es) | {len(domains)} domain(s)"
+                      f"{' (' + ', '.join(domains) + ')' if domains else ''} | "
+                      f"{fetched_chars:,} chars ingested | "
+                      f"cap {config.MAX_WEB_SEARCHES_PER_CHAPTER}/session")
+
+        lines = [status, "",
+                 "Web enrichment audit trail (docs/web-enrichment-plan.md).",
+                 "Built from the actual claude CLI session transcript, not self-reported.",
+                 ""]
+        if transcript is None:
+            lines += ["NOTE: the session transcript could not be located, so the counts",
+                      "above are not authoritative for this run.", ""]
+        lines += [f"Searches issued ({len(searches)}):"]
+        lines += [f"  - {q}" for q in searches] or ["  (none)"]
+        lines += ["", f"Pages fetched ({len(fetches)}):"]
+        lines += [f"  - {u}" for u in fetches] or ["  (none)"]
+        (target_dir / config.WEB_SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        logger.info(status)
+    except Exception as e:
+        logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
+
+
+def write_run_diagnostics(target_dir: Path, workspace: Path) -> dict:
+    """Per-run efficiency telemetry, mined from the same session transcript as
+    write_web_sources_manifest() -- and for the same reason: a pattern nothing
+    measures is a pattern nobody fixes.
+
+    THIS EXISTS BECAUSE OF A REAL, OBSERVED FAILURE: one live run wrote 16
+    ad-hoc scratch Python scripts (_add_crossref.py, _insert_figs.py,
+    _fix_slashes.py, ...) to hand-patch content.json, and invoked the skill's
+    own `build.js --patch` -- which exists precisely so a revision costs a few
+    hundred tokens instead of ~28,000 -- exactly zero times. That is the
+    anti-pattern SKILL.md opens by warning about, and it left no trace in any
+    pipeline artifact; it was only visible by reading the raw transcript by
+    hand afterwards. See docs/stage2-token-burn-postmortem.md.
+
+    Counts, and writes target_dir/config.RUN_DIAGNOSTICS when there is
+    anything worth reporting:
+      - Write calls targeting *.py at the workspace ROOT (excluding
+        fig_scripts/, which is where the skill's own figure scripts
+        legitimately live)
+      - `--patch` invocations
+
+    Returns {"adhoc_scripts": [...], "patch_invocations": int}. Best-effort and
+    silent-on-failure like every other transcript reader here -- diagnostics
+    must never fail a chapter that otherwise succeeded.
+    """
+    result = {"adhoc_scripts": [], "patch_invocations": 0}
     try:
         transcript = _latest_session_transcript(workspace)
         if transcript is None:
-            return
+            return result
 
-        searches, fetches = [], []
+        adhoc, patches = set(), 0
         with open(transcript, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
@@ -178,31 +318,51 @@ def write_web_sources_manifest(target_dir: Path, workspace: Path) -> None:
                 for block in content:
                     if not isinstance(block, dict) or block.get("type") != "tool_use":
                         continue
-                    name = block.get("name")
                     tool_input = block.get("input") or {}
-                    # Defensive parsing: if tool_input isn't a dict (e.g. model hallucinated a string), skip to avoid aborting the audit trail
                     if not isinstance(tool_input, dict):
                         continue
-                    if name == "WebSearch":
-                        query = tool_input.get("query", "")
-                        domains = tool_input.get("allowed_domains") or tool_input.get("blocked_domains")
-                        searches.append(f"{query} (domains: {domains})" if domains else query)
-                    elif name == "WebFetch":
-                        fetches.append(tool_input.get("url", ""))
+                    name = block.get("name")
+                    if name in ("Write", "Edit"):
+                        raw = str(tool_input.get("file_path") or "")
+                        if raw.endswith(".py"):
+                            # Normalize separators before the fig_scripts/ test --
+                            # these paths are Windows-style in a native run.
+                            posix = raw.replace("\\", "/")
+                            if "/fig_scripts/" not in posix:
+                                adhoc.add(posix.rsplit("/", 1)[-1])
+                    elif name == "Bash":
+                        if "--patch" in str(tool_input.get("command") or ""):
+                            patches += 1
 
-        if not searches and not fetches:
-            return  # nothing web-related happened this run; no manifest needed
+        result = {"adhoc_scripts": sorted(adhoc), "patch_invocations": patches}
+        if not adhoc and not patches:
+            return result
 
-        lines = ["Web enrichment audit trail (docs/web-enrichment-plan.md).",
-                 "Built from the actual claude CLI session transcript, not self-reported.",
-                 "", f"Searches issued ({len(searches)}):"]
-        lines += [f"  - {q}" for q in searches] or ["  (none)"]
-        lines += ["", f"Pages fetched ({len(fetches)}):"]
-        lines += [f"  - {u}" for u in fetches] or ["  (none)"]
-        (target_dir / config.WEB_SOURCES).write_text("\n".join(lines) + "\n", encoding="utf-8")
-        logger.info(f"Wrote {config.WEB_SOURCES} ({len(searches)} search(es), {len(fetches)} fetch(es)).")
+        lines = [
+            f"Ad-hoc scratch scripts written: {len(adhoc)} | "
+            f"build.js --patch invocations: {patches}",
+            "",
+            "Mined from the claude CLI session transcript, not self-reported.",
+            "A high ad-hoc count with zero --patch invocations is the pattern",
+            "SKILL.md warns about: hand-rolling content edits in throwaway Python",
+            "instead of using the skill's own incremental-revision path.",
+            "See docs/stage2-token-burn-postmortem.md.",
+            "",
+            f"Ad-hoc *.py written outside fig_scripts/ ({len(adhoc)}):",
+        ]
+        lines += [f"  - {n}" for n in sorted(adhoc)] or ["  (none)"]
+        (target_dir / config.RUN_DIAGNOSTICS).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        if adhoc and not patches:
+            logger.warning(f"{len(adhoc)} ad-hoc scratch script(s) written and 0 --patch "
+                            f"invocations this run -- see {config.RUN_DIAGNOSTICS} in "
+                            f"{target_dir.name}.")
+        else:
+            logger.info(f"Wrote {config.RUN_DIAGNOSTICS} ({len(adhoc)} ad-hoc script(s), "
+                        f"{patches} --patch invocation(s)).")
+        return result
     except Exception as e:
-        logger.warning(f"Could not write {config.WEB_SOURCES} audit trail: {e}")
+        logger.warning(f"Could not write {config.RUN_DIAGNOSTICS}: {e}")
+        return result
 
 
 def verify_resolved_skill(workspace: Path, expected_dirs: set) -> dict:
@@ -416,7 +576,8 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
     # can only reply in text -- nothing to spend money doing.
     allowed_tools = "" if dev_mode else config.CLAUDE_ALLOWED_TOOLS
     extra_env = None
-    if not dev_mode and getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
+    web_enabled = bool(not dev_mode and getattr(config, 'ENABLE_WEB_ENRICHMENT', False))
+    if web_enabled:
         # Bounded web enrichment (docs/web-enrichment-plan.md). Two SEPARATE
         # guardrail mechanisms, not one config field -- Claude Code's
         # WebSearch permission rule has no domain specifier (allow/deny the
@@ -441,6 +602,18 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
            "--permission-mode", config.CLAUDE_PERMISSION_MODE,
            "--allowedTools", allowed_tools,
            "--add-dir", str(target_dir)]
+    if not dev_mode:
+        # Grant read access to BOTH freshly-synced skill install locations (see
+        # sync_skill_package(), which keeps them in lockstep every run). Without
+        # this, the model's own reads/greps of $S/lib/figlib.py, $S/tools/*.py
+        # etc. are refused with "may only list files in the allowed working
+        # directories" -- observed repeatedly on a live run, each denial costing
+        # a wasted turn in a session with nobody present to approve it. Skipped
+        # in dev mode, which grants no tools at all and never resolves a skill.
+        for skill_dir in (config.CLAUDE_SKILL_INSTALL_DIR,
+                          config.CLAUDE_SKILL_GLOBAL_INSTALL_DIR):
+            if Path(skill_dir).exists():
+                cmd += ["--add-dir", str(skill_dir)]
     if getattr(config, 'CLAUDE_MODEL', ''):
         cmd += ["--model", config.CLAUDE_MODEL]
     if not dev_mode and getattr(config, 'CLAUDE_EFFORT', ''):
@@ -462,6 +635,18 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
 
     logger.info(f"Invoking claude CLI for chapter '{target_dir.name}' "
                 f"(cwd={workspace}, resume={'yes' if resume_session_id else 'no'}) ...")
+    # State the web-enrichment grant at INVOCATION time, not just in the
+    # post-run manifest. This is pure config -- knowable before the call runs
+    # and true even if the run dies before any manifest is written, which is
+    # exactly the case that previously left no evidence either way.
+    if web_enabled:
+        logger.info(f"Web enrichment GRANTED: WebSearch + WebFetch restricted to "
+                    f"{len(config.WEB_SEARCH_ALLOWED_DOMAINS)} domain(s) "
+                    f"({', '.join(config.WEB_SEARCH_ALLOWED_DOMAINS)}), cap "
+                    f"{config.MAX_WEB_SEARCHES_PER_CHAPTER}/session.")
+    elif not dev_mode:
+        logger.info("Web enrichment NOT granted (config.ENABLE_WEB_ENRICHMENT=0) -- "
+                    "this run cannot search or fetch, regardless of what it reports.")
 
     # This call routinely runs for many minutes (up to CLAUDE_CLI_TIMEOUT_SECONDS,
     # an hour by default) and prints nothing on its own until it's completely
@@ -475,7 +660,8 @@ def run_claude_cli(target_dir: Path, prompt: str, resume_session_id: str = None,
     # the child -- a plain proc.poll()-and-sleep loop would risk exactly that.
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                 text=True, cwd=str(workspace), env=build_claude_env(extra_env))
+                                 text=True, cwd=str(workspace),
+                                 env=build_claude_env(extra_env, workspace=workspace))
     except Exception as e:
         logger.error(f"claude CLI call failed to launch: {e}")
         return {"ok": False, "result": None, "session_id": None, "total_cost_usd": None,
@@ -786,9 +972,37 @@ def run_stage2_chapter(target_dir: Path = None, live_mode: bool = False) -> int:
 
         if result["ok"] and expected_docx.exists():
             logger.info("Target docx confirmed. Placing success marker.")
-            if getattr(config, 'ENABLE_WEB_ENRICHMENT', False):
-                write_web_sources_manifest(target_dir, _chapter_workspace(target_dir))
-            retro = capture_retro_findings(target_dir, _chapter_workspace(target_dir), resolved_skill_dir=resolved_skill_dir)
+            # Written on EVERY successful run, including when enrichment was off:
+            # "no file" used to mean three different things at once (see
+            # write_web_sources_manifest's docstring).
+            write_web_sources_manifest(
+                target_dir, _chapter_workspace(target_dir),
+                enabled=bool(getattr(config, 'ENABLE_WEB_ENRICHMENT', False)),
+            )
+            diagnostics = write_run_diagnostics(target_dir, _chapter_workspace(target_dir))
+            # Promote the ad-hoc-script pattern to a first-class retro candidate so it
+            # lands in the SAME artifact a human reviews after a run, rather than in a
+            # separate file nobody thinks to open. Only when it actually happened AND
+            # the cheap path went unused -- a run that used --patch has nothing to learn.
+            extra = []
+            if diagnostics["adhoc_scripts"] and not diagnostics["patch_invocations"]:
+                extra.append({
+                    "observed": len(diagnostics["adhoc_scripts"]),
+                    "issue": "ad-hoc scratch scripts used instead of build.js --patch",
+                    "change": (
+                        "This run hand-rolled "
+                        f"{len(diagnostics['adhoc_scripts'])} throwaway *.py script(s) "
+                        f"({', '.join(diagnostics['adhoc_scripts'][:6])}"
+                        f"{', ...' if len(diagnostics['adhoc_scripts']) > 6 else ''}) to patch "
+                        "content, and invoked build.js --patch zero times. --patch costs a few "
+                        "hundred tokens; re-emitting content.json costs ~28,000. If the model is "
+                        "not finding --patch, make it more prominent in SKILL.md's Pipeline "
+                        "section; if it is finding it but judging it unusable, find out why."
+                    ),
+                })
+            retro = capture_retro_findings(target_dir, _chapter_workspace(target_dir),
+                                            resolved_skill_dir=resolved_skill_dir,
+                                            extra_candidates=extra)
             if retro["candidates"]:
                 if getattr(config, 'ENABLE_AUTO_SKILL_IMPROVEMENT', False):
                     logger.warning(f"{len(retro['candidates'])} skill-improvement candidate(s) "

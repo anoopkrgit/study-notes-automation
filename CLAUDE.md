@@ -27,13 +27,20 @@ python3 -m pytest tests/ -v
 python3 -m pytest tests/test_claude_cli_subprocess_stage2.py -v
 python3 -m pytest tests/test_claude_cli_subprocess_stage2.py::test_web_enrichment_enabled_adds_scoped_tools_and_search_cap -v
 
+# On native Windows, `python3` is NOT the interpreter the pipeline runs under -- it
+# resolves to a PATH/Store alias (measured: 3.14, with no test deps) while the runner is
+# installed under 3.12. Use the launcher explicitly, or the suite fails with
+# "No module named pytest" and nothing is actually verified:
+py -3.12 -m pytest tests/ -q
+
 # Environment health check (tools on PATH, API key present, dirs exist) — no pipeline run
 python3 src/main.py --doctor
 
 # Cheap end-to-end smoke test of both stages' wiring (real API/CLI calls, near-zero cost,
 # dummy content) — the fastest way to confirm nothing is broken after a change
 python3 src/main.py --stage1-mode llm-token-saver --stage2-mode llm-token-saver --verbose
-# or: bash run_test.sh (same thing, against the real target-root chapter folders)
+# or: bash run_test.sh (same idea, against the real target-root chapter folders, but
+# pins --stage2-impl graph rather than exercising all three)
 
 # Stage 1 only, no LLM (deterministic filename routing, zero tokens)
 python3 src/main.py --stage1-mode no-llm
@@ -53,8 +60,18 @@ python3 src/main.py --stage1-mode llm-full --stage1-impl subprocess
 python3 src/main.py --stage2-mode llm-full --stage2-impl graph
 ```
 
-No linter/formatter is configured in this repo. There's no `pyproject.toml`/`pytest.ini`;
-pytest runs off plain file/function discovery in `tests/`.
+No linter/formatter is configured in this repo. `pyproject.toml` exists but only for
+packaging (see "Packaging as a dependency" below) — it has no `[tool.pytest]` section, and
+there's no separate `pytest.ini`; pytest still runs off plain file/function discovery in
+`tests/`.
+
+**This repo must work on native Windows AND Linux/WSL — verify on both before calling a
+change done** (see "Cross-platform" below for the defect classes that keep recurring). WSL
+is the second platform, reached via `wsl.exe -e bash -lc "cd /mnt/c/... && ..."`. Its system
+Python has no test deps, so make a throwaway venv (`python3 -m venv /tmp/v && /tmp/v/bin/pip
+install pytest jsonschema httpx anthropic`). Some suites additionally need optional deps
+(langgraph) that may be absent — so **establish a HEAD baseline with `git stash` and diff the
+failure sets**, rather than reading raw pass/fail counts; pre-existing failures are normal.
 
 ## Architecture: three parallel implementations per stage
 
@@ -83,6 +100,11 @@ zip**, not a directory; there is no separate unpacked source tree in git. To edi
 `SKILL.md` (or anything else inside), unzip it, edit, and re-zip in place — see the
 web-enrichment / skill-resolution-fix commit history for the exact unzip/edit/rezip
 approach (`repackage_skill_dir()` in `src/common/skill_retro.py` for the programmatic version).
+After re-zipping, diff the entry list against `git show HEAD:templates/study-notes.skill` to
+confirm nothing was dropped. The skill's own contract worth knowing before reading its
+`SKILL.md`: content fixes go through `build.js --patch` (a few hundred tokens) or by editing
+one `content.d/<part>.json` — never a throwaway script that rewrites `content.json`, which is
+what `_run-diagnostics.txt` exists to detect.
 `.claude/skills/` and `.skill-runtime/` in this repo are gitignored *local extraction
 caches* of that zip (`sync_skill_package()` in `stage2_cli.py`), not sources of truth.
 
@@ -97,6 +119,24 @@ the session transcript's own `"Base directory for this skill: ..."` line after e
 treats a resolution outside {project-local, global} as FATAL. See `docs/cli-subprocess-plan.md`'s
 "Resolved" section for the full incident.
 
+### Everything the `subprocess` impl knows about a run comes from the session transcript
+
+Four functions in `stage2_cli.py` derive ground truth by reading Claude Code's own local
+session JSONL (`~/.claude/projects/<mangled-cwd>/*.jsonl`) rather than trusting the model's
+self-report — the same "TRUTH-CHECK, NOT SELF-REPORTED SUCCESS" rule as the `expected_docx.exists()`
+gate: `_heartbeat_summary()` (progress line), `write_web_sources_manifest()` (web audit),
+`write_run_diagnostics()` (efficiency telemetry), and `verify_resolved_skill()` (FATAL
+wrong-skill check). All four route through one lookup, `_latest_session_transcript()`.
+
+**That lookup's path mangling must match Claude Code's real on-disk convention exactly**:
+every path separator *and* the Windows drive colon map to `-`, so `C:\Users\x` →
+`C--Users-x` (note the double dash). It previously dropped the colon, so on native Windows
+the lookup returned `None` on every call and all four features silently no-opped — a run
+would log `starting up` for hours, produce no manifests, and leave the FATAL skill check
+unable to fire. When touching this, pin expectations to literal real directory names
+(`test_session_transcript_dir_matches_real_claude_code_layout`); a test that recomputes the
+expectation with the same transform under test agrees with the bug and catches nothing.
+
 After a successful run, `capture_retro_findings()` runs the skill's own `tools/retro.py --json`
 directly (not relying on the model having invoked it) and writes `_retro-findings.txt` into the
 chapter folder if there are candidate skill improvements. `apply_retro_fixes()` (opt-in via
@@ -106,6 +146,12 @@ is independently re-run as the accept/reject gate — a failing `regress.py` dis
 entirely; `templates/study-notes.skill` is only ever overwritten after an independently-confirmed
 pass. Both functions (plus `repackage_skill_dir()`) live in `src/common/skill_retro.py` and are
 shared by BOTH the `subprocess` and `graph` Stage 2 implementations — one copy, not two.
+`capture_retro_findings()` also takes `extra_candidates`, so findings the skill's run log
+cannot see (it only records what the skill's *tools* rejected, never how the model went about
+fixing them) still land in the one artifact a human reviews — `write_run_diagnostics()` feeds
+it the ad-hoc-scratch-script count that way. A non-zero `retro.py` exit is now logged loudly
+rather than swallowed; a silent swallow is how a Windows-only crash in `retro.py` left the
+retrospective a permanent no-op on that platform without ever surfacing an error.
 
 `DEV_TOKEN_SAVER_MODE` (set via `--stageN-mode llm-token-saver`) is a cost-safe smoke-test
 toggle honored by all three implementations: cheap model, dummy prompt/content, capped
@@ -121,13 +167,24 @@ real production run.
   Windows wake task against it.
 - `state/progress/<chapter>.json` — Stage 2's cross-run resume state (conversation
   history for `legacy`/`graph`, `claude` session id for `subprocess`).
+- `state/workspace/<chapter>/` — per-chapter scratch dir for `subprocess`'s `run_claude_cli()`
+  cwd (moved here from a top-level dir in a recent commit — if you see references to a
+  top-level `generation-workspace/`, they're stale).
+- `state/graph-checkpoints/` — LangGraph's own SQLite checkpointer for the `graph` impl.
 - Per-chapter marker files: `_hold` (not ready yet), `_notes_done` (success), `_notes_FAILED.txt`
   (non-retryable failure, needs a human), `_sources.txt`/`_web-sources.txt` (attribution
   manifests — the `subprocess` variant is built from Claude Code's own session transcript,
   not the model's self-report; see `write_web_sources_manifest()` in `stage2_cli.py`, and the
-  `graph` variant of the same name in `stage2_graph.py`), and `_retro-findings.txt` (candidate
+  `graph` variant of the same name in `stage2_graph.py`), `_retro-findings.txt` (candidate
   skill improvements from that chapter's `tools/retro.py` run — see `capture_retro_findings()`/
-  `apply_retro_fixes()` in `src/common/skill_retro.py`, shared by both implementations).
+  `apply_retro_fixes()` in `src/common/skill_retro.py`, shared by both implementations), and
+  `_run-diagnostics.txt` (per-run efficiency telemetry — ad-hoc scratch `*.py` written vs
+  `build.js --patch` invocations; written only when there is something to report).
+  `_web-sources.txt` is written on EVERY successful `subprocess` run, including when
+  enrichment was off: "no file" previously meant three different things at once (disabled /
+  enabled-but-unused / transcript unreadable), and that ambiguity is what let a run's
+  "web research was not used, the transcripts were sufficient" be believed when the tools
+  had in fact never been granted.
 - Source files are read-only: Stage 1 only ever *copies* into chapter folders, never
   moves/deletes from the incoming source directories.
 
@@ -138,25 +195,98 @@ almost everything is `os.environ.get(...)`-backed with a sane default, so behavi
 via env vars, not code edits. Notable groups: base paths/models (top of file), the
 `STAGE1_IMPL`/`STAGE2_IMPL`/`DEV_TOKEN_SAVER_MODE` rollout switches, the `CLAUDE_*` block
 (subprocess-implementation CLI flags/timeouts, including `CLAUDE_SKILL_INSTALL_DIR` +
-`CLAUDE_SKILL_GLOBAL_INSTALL_DIR`, both kept in sync every run), the `ENABLE_WEB_ENRICHMENT`/
+`CLAUDE_SKILL_GLOBAL_INSTALL_DIR`, both kept in sync every run), the `ENABLE_WEB_ENRICHMENT`
+(**now defaults ON**; it shipped off pending validation and so was never exercised — the flag
+is still the kill switch, but the outcome is recorded in `_web-sources.txt` either way)/
 `WEB_SEARCH_ALLOWED_DOMAINS`/`MAX_WEB_SEARCHES_PER_CHAPTER` block (bounded web search — see
-`docs/web-enrichment-plan.md`; wired into both the `subprocess` generator, via Claude Code's
-own `WebSearch`/`WebFetch` tools, and the `graph` generator, via `tool_web_search`/
-`tool_web_fetch` in `src/agents/tools.py`), and
+`docs/web-enrichment-plan.md`; originally `subprocess`-only, now wired into all three Stage 2
+implementations — `subprocess` via Claude Code's own `WebSearch`/`WebFetch` tools, `graph`
+via `tool_web_search`/`tool_web_fetch` in `src/agents/tools.py`, and `direct_api` via the
+same tools ported in per PR #7/#8), and
 `ENABLE_AUTO_SKILL_IMPROVEMENT`/`AUTO_SKILL_IMPROVEMENT_WORKSPACE` (opt-in autonomous
 application of `retro.py` candidates, `regress.py`-gated — off by default).
+
+### What the `claude` CLI subprocess is granted, and why it isn't grantable in the prompt
+
+`CLAUDE_ALLOWED_TOOLS` is a per-verb allowlist, not a blanket `Bash` grant. Two constraints
+interact and are easy to get wrong:
+
+- **The runs are unattended, so every denial is a guaranteed-wasted turn** — there is nobody
+  to approve. One live run burned ~68 turns purely on `"this command requires approval"`.
+  The list therefore includes the read-only/scratch verbs the skill's own pipeline actually
+  uses (`ls/grep/cat/wc/mkdir/rm/env/cd`) alongside the interpreters.
+- **`export` is deliberately NOT granted.** `SKILL.md` step 1 needs `NODE_PATH` (so
+  `build.js` resolves `docx`) and Windows needs `PYTHONIOENCODING=utf-8`; both are set
+  process-side in `build_claude_env()` (`src/claude_cli_subprocess/common.py`) so nothing has
+  to be exported. Adding `Bash(export *)` instead would be the wrong fix.
+
+`run_claude_cli()` also passes `--add-dir` for both skill install dirs, so the model's reads
+of `$S/lib/figlib.py` etc. aren't refused as outside the working directory.
+
+## Cross-platform (Windows + Linux/WSL)
+
+Platform defects in this repo are a recurring, high-cost class — they fail *silently* and
+look like model misbehaviour. `docs/stage2-token-burn-postmortem.md` is the case study.
+Already handled correctly (don't "fix" these): `skill_package.py`'s `fcntl`/`msvcrt` lock
+branch, `func_tools_and_utils.py`'s `_WINDOWS_BUILTIN_COMMANDS` (services `ls/cat/cp/mv/mkdir`
+in Python on Windows, where they have no executable), and `settings.py`'s `G:/` vs `/mnt/g`
+root. The patterns to apply in new code:
+
+- **Never hardcode `python3`** to run a helper script — use `sys.executable`. On Windows
+  `python3` is a PATH/Store alias pointing at a *different* interpreter than the one running
+  the pipeline, so provisioned deps aren't there and it surfaces as an unrelated
+  `ModuleNotFoundError`. (`agents/tools.py` had 11 such call sites.)
+- **Never pass a bare `npm`** to `subprocess` — resolve with `shutil.which()` first. npm ships
+  only as `npm.cmd`/`npm.ps1` on Windows and `CreateProcess` only auto-appends `.exe`, so a
+  bare name raises `FileNotFoundError`. `node`/`soffice`/`pdftoppm` are real `.exe`s and are fine.
+- **Always pass `encoding="utf-8"`** to `open()`/`write_text()` on anything textual. Windows
+  defaults to cp1252 and dies on the chapter content's real symbols (₁, ∝, °). Note the run
+  log is written by *both* Python (`json.dumps`, ASCII-escaped) and `build.js` (Node's
+  `JSON.stringify`, raw UTF-8), so readers must assume UTF-8.
+- **Don't compare file mtimes against `time.time()`** to detect "did this change?" — different
+  sources, different resolutions. Snapshot `(st_mtime_ns, st_size)` before and after instead.
+- `Path.home()` reads `USERPROFILE` on Windows, `HOME` on POSIX — tests that monkeypatch only
+  `HOME` silently no-op on Windows and assert nothing (see `_set_fake_home` in the stage2 tests).
+
+## Packaging as a dependency
+
+This repo is transitioning to also being pip-installable, so a sibling project
+(`run-claude-agent`) can depend on it via
+`git+https://github.com/anoopkrgit/study-notes-automation.git@develop` instead of a git
+clone. `pyproject.toml`'s `[tool.setuptools]` block keeps `config/`, `src/` (+ subpackages),
+and `templates/` installed as siblings under one root — preserving the exact nesting that
+`config/settings.py`'s `LOCAL_RUNTIME_ROOT` (computed as "two directories above my own
+`__file__`") and the skill-zip glob logic assume, confirmed empirically against a real wheel
+build/install. `config/` has no `__init__.py` (matches the git-clone layout — it's an
+implicit namespace package, never imported as `config.settings`); a consumer needs to put
+the installed `config/` dir itself onto `sys.path` before `import settings` will resolve,
+same as `src/main.py` already does for a git clone (see `run-claude-agent`'s `bootstrap.py`
+for the installed-package equivalent). `config/settings.py`'s `LOCAL_RUNTIME_ROOT` can also
+be overridden via the `STUDY_NOTES_RUNTIME_ROOT` env var, so a pip-installed consumer can
+point state/logs outside site-packages.
+
+If you change how `LOCAL_RUNTIME_ROOT` (or any other path derived from `__file__`) is
+computed, re-check this packaging story — it was verified against one specific layout, not
+derived from a general principle.
 
 ## Docs worth reading before larger changes
 
 - `docs/architecture.md` — the full invocation tree, Windows→WSL→Python→retry/sleep flow.
 - `docs/migration-to-agents.md` / `docs/agent_migration_walkthrough.md` — why the `graph`
   implementation exists and how it was verified against `legacy`.
-- `docs/web-enrichment-plan.md` — bounded web search design for the `subprocess` Stage 2
-  generator, including why its guardrail mechanism (`WebFetch(domain:...)` permission
-  rules, `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION`) is CLI-specific and doesn't carry over
-  to `direct_api`/`agents` as-is.
+- `docs/web-enrichment-plan.md` — bounded web search design, originally written for the
+  `subprocess` Stage 2 generator (whose guardrail mechanism — `WebFetch(domain:...)`
+  permission rules, `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION` — is CLI-specific). Since
+  written, web enrichment + retro-candidate synthesis have been ported into `direct_api`
+  and `graph` too (PR #7/#8); the doc predates that and describes only the original
+  `subprocess` design.
 - `docs/setup-guide.md` — Windows Task Scheduler + WSL environment setup (not needed for
   code changes, only for standing up the nightly automation itself).
+- `docs/stage2-token-burn-postmortem.md` — forensic breakdown of a run that consumed two
+  full 5-hour subscription windows. Read before optimising anything cost-related: it
+  quantifies where the turns actually went (permission friction and correction rounds, not
+  context size), records the cross-platform defects found alongside, and lists changes that
+  were **considered and rejected**, with reasons — check it before re-proposing one.
 
 **Stale docs, don't trust for current facts:** `readme.md`'s "Repository Structure" section
 still shows the pre-split layout (`src/stage1_api.py`/`src/stage2_api.py` directly, no

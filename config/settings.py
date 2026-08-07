@@ -75,6 +75,10 @@ FAILMARK = "_notes_FAILED.txt"
 SOURCES = "_sources.txt"
 WEB_SOURCES = "_web-sources.txt"
 RETRO_FINDINGS = "_retro-findings.txt"
+RUN_DIAGNOSTICS = "_run-diagnostics.txt"  # per-run efficiency telemetry mined from the
+    # claude CLI session transcript (ad-hoc scratch scripts written vs build.js --patch
+    # invocations) -- see write_run_diagnostics() in claude_cli_subprocess/stage2_cli.py
+    # and docs/stage2-token-burn-postmortem.md for the pattern it exists to make visible.
 NEWMAT = "_new-material.txt"
 SUP_DIR = "supporting"
 TRANSCRIPTS_DIR = "transcripts"
@@ -163,7 +167,17 @@ CLAUDE_EFFORT = os.environ.get("CLAUDE_EFFORT", "")  # unset by default; when se
                                                        # and always wins while dev mode is on.
 CLAUDE_ALLOWED_TOOLS = os.environ.get("CLAUDE_ALLOWED_TOOLS",
     "Bash(python3 *),Bash(node *),Bash(npm *),Bash(pdftotext *),Bash(pdfinfo *),"
-    "Bash(pdftoppm *),Bash(soffice *),Read,Write,Edit,Glob,Grep")
+    "Bash(pdftoppm *),Bash(soffice *),"
+    # Read-only/scratch shell verbs the skill's own pipeline needs. Added after a
+    # live run burned ~68 turns purely on "this command requires approval"
+    # denials that no one was there to approve (unattended run) -- see
+    # docs/stage2-token-burn-postmortem.md. NOT a blanket Bash grant: each verb
+    # is still individually scoped, and `export` is deliberately still absent
+    # (NODE_PATH/PYTHONIOENCODING are set process-side in
+    # claude_cli_subprocess/common.py's build_claude_env() instead).
+    "Bash(ls *),Bash(grep *),Bash(cat *),Bash(wc *),Bash(mkdir *),"
+    "Bash(rm *),Bash(env *),Bash(cd *),"
+    "Read,Write,Edit,Glob,Grep")
 CLAUDE_PERMISSION_MODE = os.environ.get("CLAUDE_PERMISSION_MODE", "acceptEdits")
 CLAUDE_CLI_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_CLI_TIMEOUT_SECONDS", "3600"))
 CLAUDE_CLI_HEARTBEAT_SECONDS = int(os.environ.get("CLAUDE_CLI_HEARTBEAT_SECONDS", "120"))  # how
@@ -188,14 +202,22 @@ CLAUDE_SKILL_GLOBAL_INSTALL_DIR = Path.home() / ".claude" / "skills" / "study-no
 CLAUDE_WORKSPACE_ROOT = STATE_DIR / "workspace"  # per-chapter scratch subfolders
 
 # ---------------------------------------------------------------------------
-# Bounded web enrichment for Stage 2 (docs/web-enrichment-plan.md). Opt-in
-# and off by default until validated against real --live runs. Only wired
-# into src/claude_cli_subprocess/stage2_cli.py -- see the plan doc for why
-# the guardrail mechanism (WebFetch domain-scoped permission rules +
-# CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION) is CLI-specific and doesn't
-# carry over to src/direct_api/ or src/agents/ as-is.
+# Bounded web enrichment for Stage 2 (docs/web-enrichment-plan.md). Now ON by
+# default. It originally shipped off ("0") pending validation against real
+# --live runs, which meant it was never actually exercised: a real live run's
+# closing summary claimed "web research was not used -- the transcripts were
+# sufficient for this chapter's scope", when in fact WebSearch/WebFetch had
+# never been granted at all (see docs/stage2-token-burn-postmortem.md). Still
+# fully env-overridable (ENABLE_WEB_ENRICHMENT=0) and still bounded by
+# WEB_SEARCH_ALLOWED_DOMAINS + MAX_WEB_SEARCHES_PER_CHAPTER below. Whichever
+# way it resolves, the outcome is now RECORDED in config.WEB_SOURCES on every
+# run rather than inferred from silence -- see write_web_sources_manifest() in
+# src/claude_cli_subprocess/stage2_cli.py. Only wired into that module -- see
+# the plan doc for why the guardrail mechanism (WebFetch domain-scoped
+# permission rules + CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION) is CLI-specific
+# and doesn't carry over to src/direct_api/ or src/agents/ as-is.
 # ---------------------------------------------------------------------------
-ENABLE_WEB_ENRICHMENT = os.environ.get("ENABLE_WEB_ENRICHMENT", "0") == "1"
+ENABLE_WEB_ENRICHMENT = os.environ.get("ENABLE_WEB_ENRICHMENT", "1") == "1"
 WEB_SEARCH_ALLOWED_DOMAINS = [
     "ncert.nic.in",
     "hyperphysics.phy-astr.gsu.edu",

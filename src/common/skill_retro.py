@@ -42,7 +42,6 @@ import json
 import shutil
 import subprocess
 import sys
-import time
 import zipfile
 from pathlib import Path
 
@@ -50,7 +49,8 @@ import settings as config
 from src.func_tools_and_utils import logger
 
 
-def capture_retro_findings(target_dir: Path, workspace: Path, resolved_skill_dir: Path = None) -> dict:
+def capture_retro_findings(target_dir: Path, workspace: Path, resolved_skill_dir: Path = None,
+                            extra_candidates: list = None) -> dict:
     """Run the skill's own tools/retro.py directly (--json --rundir
     <workspace>/.study-notes) rather than relying on the model to have
     invoked it, or scraping its text output from a transcript -- TRUTH-CHECK,
@@ -94,10 +94,35 @@ def capture_retro_findings(target_dir: Path, workspace: Path, resolved_skill_dir
             capture_output=True, text=True, timeout=30,
         )
         if result.returncode != 0:
+            # LOUD, not silent. retro.py exits 2 with a clear "no run log" message
+            # when there is genuinely nothing to learn from (DEV_TOKEN_SAVER_MODE
+            # never touches the real skill scripts), which is unremarkable -- but
+            # every OTHER non-zero exit is a broken retrospective, and swallowing
+            # it wholesale is how a Windows-only UnicodeDecodeError in retro.py's
+            # own log reader went unnoticed across every run on this platform: no
+            # findings file, no warning, indistinguishable from "nothing to
+            # report". See docs/stage2-token-burn-postmortem.md.
+            stderr = (result.stderr or "").strip()
+            if result.returncode == 2 and "no run log" in stderr.lower():
+                logger.info("retro.py: no run log for this chapter; nothing to learn from.")
+            else:
+                logger.warning(f"retro.py failed (exit {result.returncode}) -- no skill-improvement "
+                                f"candidates captured for this chapter: {stderr[-500:] or '(no stderr)'}")
             return {"ok": False, "candidates": [], "log_records": 0}
         report = json.loads(result.stdout)
         candidates = report.get("candidates") or []
         log_records = report.get("log_records", 0)
+        # Merge in candidates derived from things retro.py's own run log cannot
+        # see. retro.py only reads what the skill's TOOLS logged (what they
+        # rejected, how often); it has no visibility into how the model went
+        # about fixing those rejections -- so a run that hand-rolled 16 scratch
+        # scripts instead of using build.js --patch looks identical to one that
+        # did it the cheap way. write_run_diagnostics() in
+        # claude_cli_subprocess/stage2_cli.py mines that from the session
+        # transcript and passes it here, so the one artifact a human reviews
+        # after a run carries both halves.
+        if extra_candidates:
+            candidates = list(candidates) + list(extra_candidates)
         if candidates:
             lines = [
                 f"Skill-improvement candidates from tools/retro.py ({log_records} log records this run).",
@@ -114,7 +139,9 @@ def capture_retro_findings(target_dir: Path, workspace: Path, resolved_skill_dir
                 lines.append("")
             (target_dir / config.RETRO_FINDINGS).write_text("\n".join(lines), encoding="utf-8")
         return {"ok": True, "candidates": candidates, "log_records": log_records}
-    except Exception:
+    except Exception as e:
+        # Also loud -- same reasoning as the non-zero-exit branch above.
+        logger.warning(f"Could not capture retro findings for {target_dir.name}: {e}")
         return {"ok": False, "candidates": [], "log_records": 0}
 
 
@@ -224,7 +251,28 @@ its existing table format (see the file for the convention).
 Report at the end: which candidates you addressed, which you skipped and why, and
 confirm regress.py's final pass/fail."""
 
-        start_time = time.time()
+        # Fingerprint the skill copy BEFORE the session runs, so "did it change
+        # anything?" is answered by comparing the tree against itself rather
+        # than by comparing file mtimes against a wall-clock reading.
+        # time.time() and st_mtime come from different sources with different
+        # resolutions, so a fast edit could land with an mtime at or just below
+        # start_time and read as "no change" -- discarding a perfectly good
+        # improvement (and making the corresponding test flaky ~1 run in 3).
+        # A (path -> mtime, size) snapshot has no clock in it at all.
+        def _fingerprint():
+            snap = {}
+            for p in skill_copy.rglob("*"):
+                if p.is_file():
+                    try:
+                        st = p.stat()
+                        snap[p] = (st.st_mtime_ns, st.st_size)
+                    except OSError:
+                        # Racing deletion mid-walk: treat as present-but-unknown
+                        # so it still registers as a change if it reappears.
+                        snap[p] = None
+            return snap
+
+        before = _fingerprint()
         logger.info(f"Invoking claude CLI for autonomous skill improvement "
                     f"({len(candidates)} candidate(s), cwd={workspace}) ...")
         result = run_claude_cli(
@@ -236,9 +284,9 @@ confirm regress.py's final pass/fail."""
         if not result["ok"]:
             return {"applied": False, "reason": result.get("error", "cli call failed")}
 
-        # Check if the session actually made any changes to the skill dir
-        modified = any(p.stat().st_mtime > start_time for p in skill_copy.rglob("*") if p.is_file())
-        if not modified:
+        # Did the session actually change anything? Any added, removed, resized
+        # or re-stamped file counts -- no clock comparison involved.
+        if _fingerprint() == before:
             return {"applied": False, "reason": "session exited without modifying the skill"}
 
         # TRUTH-CHECK: re-run regress.py OURSELVES against skill_copy,
@@ -247,7 +295,20 @@ confirm regress.py's final pass/fail."""
         try:
             # Ensure docx is installed in the workspace, as regress.py relies on it and the fixing session might have skipped or failed it
             if not (workspace / "node_modules" / "docx").exists():
-                subprocess.run(["npm", "install", "docx"], cwd=str(workspace), capture_output=True)
+                # Resolve npm via shutil.which() rather than passing the bare
+                # name: on Windows npm ships only as npm.cmd/npm.ps1, never
+                # npm.exe, and subprocess (shell=False) launches via
+                # CreateProcess, which only auto-appends ".exe" -- so a bare
+                # "npm" raises FileNotFoundError there. Confirmed on this
+                # platform. Same fix (and the same reasoning) as main.py's
+                # --doctor npm probe; this call site was missed by it.
+                npm_path = shutil.which("npm")
+                if npm_path:
+                    subprocess.run([npm_path, "install", "docx"],
+                                    cwd=str(workspace), capture_output=True)
+                else:
+                    logger.warning("npm not found on PATH; regress.py may fail if the "
+                                    "workspace has no docx module installed.")
 
             regress = subprocess.run(
                 [sys.executable, str(skill_copy / "tools" / "regress.py")],

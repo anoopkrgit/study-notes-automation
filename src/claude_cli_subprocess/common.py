@@ -8,9 +8,10 @@ whole folder exists as a third, alternative implementation).
 
 import os
 import re
+from pathlib import Path
 
 
-def build_claude_env(extra_env: dict = None) -> dict:
+def build_claude_env(extra_env: dict = None, workspace: Path = None) -> dict:
     """Build the set of environment variables to hand to the `claude`
     command-line program when this code launches it as a subprocess (a
     separate, independent running copy of that program).
@@ -32,9 +33,33 @@ def build_claude_env(extra_env: dict = None) -> dict:
     CLI-behavior env vars such as CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION
     -- see stage2_cli.py's web-enrichment wiring -- without every caller
     needing its own copy-and-pop dance).
+
+    ALSO SETS TWO VARS THE SKILL OTHERWISE HAS TO `export` ITSELF, WHICH IT
+    CANNOT (postmortem: docs/stage2-token-burn-postmortem.md). The skill's
+    SKILL.md step 1 mandates `export NODE_PATH="$PWD/node_modules"` so
+    lib/build.js can resolve the `docx` package, but config.CLAUDE_ALLOWED_TOOLS
+    does not (and should not need to) grant bare `export` -- on a real live run
+    the model tried it, was denied, and then failed with "Cannot find module
+    'docx'". Setting it here removes the need for the model to shell out at
+    all. Same story for PYTHONIOENCODING: without it, the skill's Python
+    tools crash with UnicodeDecodeError/UnicodeEncodeError on native Windows
+    (cp1252 default), and the model's attempt to `export` it was likewise
+    denied. Both are set BEFORE extra_env is merged, so an explicit caller
+    override still wins.
+
+    workspace, when given, is the per-chapter scratch cwd the `claude`
+    subprocess will run in (see stage2_cli._chapter_workspace) -- NODE_PATH is
+    derived from it because node_modules is installed per-workspace, not
+    globally. Stage 1's router passes no workspace (it never builds a .docx),
+    so NODE_PATH is simply not set for it.
     """
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)
+    # setdefault, not assignment: a deliberate ambient override is respected,
+    # while the actual bug (unset -> cp1252 on Windows) is fixed.
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    if workspace is not None:
+        env["NODE_PATH"] = str(Path(workspace) / "node_modules")
     if extra_env:
         env.update(extra_env)
     return env

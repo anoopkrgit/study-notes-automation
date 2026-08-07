@@ -19,7 +19,7 @@ from src.func_tools_and_utils import EXIT_OK, EXIT_RATE_LIMITED, EXIT_FATAL
 from src.claude_cli_subprocess.stage2_cli import (
     run_stage2_chapter, run_claude_cli, classify_cli_result, sync_skill_package,
     write_web_sources_manifest, verify_resolved_skill, capture_retro_findings,
-    apply_retro_fixes, _repackage_skill_dir
+    apply_retro_fixes, _repackage_skill_dir, write_run_diagnostics
 )
 
 
@@ -154,7 +154,15 @@ def test_real_run_gets_full_tool_list_not_empty(mock_dirs):
 
         args, kwargs = mock_popen.call_args
         cmd = args[0]
-        assert cmd[cmd.index("--allowedTools") + 1] == config.CLAUDE_ALLOWED_TOOLS
+        granted = cmd[cmd.index("--allowedTools") + 1]
+        # Every tool in the configured list must be granted. NOT an equality
+        # check: config.ENABLE_WEB_ENRICHMENT now defaults on, so a real run
+        # legitimately APPENDS WebSearch/WebFetch(domain:...) to this list --
+        # asserted separately by the web-enrichment tests below. This test's job
+        # is only "a real run isn't starved of tools", which is a superset check.
+        granted_tokens = set(granted.split(","))
+        for tool in config.CLAUDE_ALLOWED_TOOLS.split(","):
+            assert tool in granted_tokens, f"real run lost tool grant: {tool}"
         assert "--max-budget-usd" not in cmd
 
 def test_nonzero_unparseable_returncode_is_retryable(mock_dirs):
@@ -363,12 +371,35 @@ def test_run_stage2_chapter_syncs_skill_to_both_project_local_and_global(mock_di
 # Bounded web enrichment (docs/web-enrichment-plan.md)
 # ---------------------------------------------------------------------------
 
+def _set_fake_home(monkeypatch, home_dir: Path) -> None:
+    """Point Path.home() at a temp dir on BOTH platforms.
+
+    Path.home() reads USERPROFILE on Windows and HOME on POSIX. These tests
+    originally set only HOME, which silently no-ops on Windows: Path.home()
+    kept returning the REAL home, _latest_session_transcript() found no
+    transcript there, and every transcript-reading test fell through the
+    "returns None" branch and asserted nothing. They passed on POSIX and
+    failed on Windows for a reason that had nothing to do with the code
+    under test."""
+    monkeypatch.setenv("HOME", str(home_dir))
+    monkeypatch.setenv("USERPROFILE", str(home_dir))
+
+
 def _write_fake_transcript(home_dir: Path, workspace: Path, content_blocks):
     """Build a fake Claude Code session transcript JSONL at the same path
     write_web_sources_manifest() (and _heartbeat_summary()) derive from
     `workspace` -- one line, one message, whose content is exactly the
-    given list of blocks (tool_use / text)."""
-    project_dir = home_dir / ".claude" / "projects" / str(workspace).replace("/", "-")
+    given list of blocks (tool_use / text).
+
+    The folder-name mangling must match Claude Code's REAL on-disk convention
+    (every separator AND the drive colon -> "-"), which is pinned independently
+    by test_session_transcript_dir_matches_real_claude_code_layout below. Do
+    not "simplify" this to mirror whatever production currently does -- mirroring
+    is how the missing-colon bug stayed invisible: the helper and the lookup
+    agreed with each other and both disagreed with the filesystem."""
+    resolved = str(workspace.resolve().absolute())
+    mangled = resolved.replace("\\", "-").replace("/", "-").replace(":", "-")
+    project_dir = home_dir / ".claude" / "projects" / mangled
     project_dir.mkdir(parents=True, exist_ok=True)
     transcript = project_dir / "session.jsonl"
     transcript.write_text(json.dumps({"message": {"content": content_blocks}}) + "\n", encoding="utf-8")
@@ -382,7 +413,7 @@ def test_write_web_sources_manifest_built_from_transcript_not_self_report(monkey
     the .docx success marker, not something the model merely claims it did
     in its text reply."""
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
 
     target = tmp_path / "chapter1"
     target.mkdir()
@@ -406,9 +437,14 @@ def test_write_web_sources_manifest_built_from_transcript_not_self_report(monkey
     assert "refraction real world examples" in content
     assert "hyperphysics.phy-astr.gsu.edu/hbase/geoopt/refr.html" in content
 
-def test_write_web_sources_manifest_skips_when_no_web_tool_use(monkeypatch, tmp_path):
+def test_write_web_sources_manifest_records_enabled_but_unused(monkeypatch, tmp_path):
+    """Tools granted but never used is its OWN recorded outcome, distinct from
+    "tools were never granted". These two used to be indistinguishable (both
+    wrote nothing at all), which is how a live run's "web research was not
+    used -- the transcripts were sufficient" was believed when the truth was
+    that WebSearch/WebFetch had never been granted."""
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
 
     target = tmp_path / "chapter1"
     target.mkdir()
@@ -417,24 +453,53 @@ def test_write_web_sources_manifest_skips_when_no_web_tool_use(monkeypatch, tmp_
 
     _write_fake_transcript(home_dir, workspace, [{"type": "text", "text": "no web tools used this run"}])
 
-    write_web_sources_manifest(target, workspace)
-    assert not (target / config.WEB_SOURCES).exists()
+    write_web_sources_manifest(target, workspace, enabled=True)
 
-def test_write_web_sources_manifest_silent_when_transcript_missing(monkeypatch, tmp_path):
-    """Best-effort: a missing transcript must never raise or block the
-    pipeline, same as _heartbeat_summary()'s own fallback."""
+    manifest = target / config.WEB_SOURCES
+    assert manifest.exists(), "enabled-but-unused must still be recorded, not silent"
+    content = manifest.read_text(encoding="utf-8")
+    assert "Web enrichment: ON" in content
+    assert "0 search(es)" in content
+    assert "0 fetch(es)" in content
+
+def test_write_web_sources_manifest_records_disabled(monkeypatch, tmp_path):
+    """The third state: enrichment off, so the tools were never granted at all.
+    Must say so explicitly rather than looking identical to "granted but
+    unused"."""
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
+
     target = tmp_path / "chapter1"
     target.mkdir()
-    write_web_sources_manifest(target, tmp_path / "workspace" / "no-such-chapter")
-    assert not (target / config.WEB_SOURCES).exists()
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+    _write_fake_transcript(home_dir, workspace, [{"type": "text", "text": "nothing"}])
 
-def test_web_enrichment_off_by_default_no_tools_no_env_var(mock_dirs):
-    """Default config.ENABLE_WEB_ENRICHMENT is False -- a real run must NOT
-    grant WebSearch/WebFetch and must NOT set
-    CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION, so an operator who never
-    opted in never has Claude Code's web tools available."""
+    write_web_sources_manifest(target, workspace, enabled=False)
+
+    content = (target / config.WEB_SOURCES).read_text(encoding="utf-8")
+    assert "Web enrichment: OFF" in content
+    assert "were NOT granted" in content
+
+def test_write_web_sources_manifest_never_raises_when_transcript_missing(monkeypatch, tmp_path):
+    """Best-effort: a missing transcript must never raise or block the
+    pipeline, same as _heartbeat_summary()'s own fallback. It now still writes
+    a manifest (silence is what caused the original misdiagnosis), but flags
+    the counts as non-authoritative rather than reporting a confident zero."""
+    home_dir = tmp_path / "home"
+    _set_fake_home(monkeypatch, home_dir)
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    write_web_sources_manifest(target, tmp_path / "workspace" / "no-such-chapter", enabled=True)
+    content = (target / config.WEB_SOURCES).read_text(encoding="utf-8")
+    assert "not authoritative" in content
+
+def test_web_enrichment_opt_out_grants_no_tools_no_env_var(monkeypatch, mock_dirs):
+    """The OPT-OUT path. config.ENABLE_WEB_ENRICHMENT now defaults to True, but
+    an operator who explicitly sets it to 0 must get no WebSearch/WebFetch grant
+    and no CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION -- i.e. the kill switch
+    still genuinely kills it."""
+    monkeypatch.setattr(config, "ENABLE_WEB_ENRICHMENT", False)
     target = mock_dirs / "chapter1"
     target.mkdir(parents=True, exist_ok=True)
 
@@ -451,6 +516,184 @@ def test_web_enrichment_off_by_default_no_tools_no_env_var(mock_dirs):
         allowed_tools = args[0][args[0].index("--allowedTools") + 1]
         assert "WebSearch" not in allowed_tools
         assert "CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION" not in kwargs["env"]
+
+def test_session_transcript_dir_matches_real_claude_code_layout(monkeypatch, tmp_path):
+    """GROUND TRUTH, not a mirror of our own transform.
+
+    Both strings below were copied from real directories under
+    ~/.claude/projects on a live machine. Claude Code maps every path
+    separator AND the drive colon to "-", so a Windows path yields a DOUBLE
+    dash after the drive letter ("C--Users-..."). Dropping the colon instead
+    ("C-Users-...") makes _latest_session_transcript() return None on every
+    call, which silently disables the heartbeat, the web-sources manifest, the
+    run diagnostics, and the FATAL wrong-skill check -- all without an error.
+
+    This test is deliberately literal: if it is ever "fixed" by recomputing the
+    expectation with the same code under test, it stops testing anything."""
+    from src.claude_cli_subprocess.stage2_cli import _latest_session_transcript
+
+    home = tmp_path / "home"
+    _set_fake_home(monkeypatch, home)
+
+    cases = [
+        (r"C:\Users\parallel\AppData\Roaming\Python\Python312\site-packages\state\workspace\Chemistry-Ch1-Gaseous-State",
+         "C--Users-parallel-AppData-Roaming-Python-Python312-site-packages-state-workspace-Chemistry-Ch1-Gaseous-State"),
+        (r"C:\06-PROJECTS\trial\study-notes-automation-redesigned",
+         "C--06-PROJECTS-trial-study-notes-automation-redesigned"),
+        ("/mnt/c/06-PROJECTS/trial/study-notes-automation-redesigned",
+         "-mnt-c-06-PROJECTS-trial-study-notes-automation-redesigned"),
+    ]
+
+    for raw_path, expected_dir in cases:
+        mangled = (raw_path.replace("\\", "-").replace("/", "-").replace(":", "-"))
+        assert mangled == expected_dir, (
+            f"path mangling drifted from Claude Code's real layout for {raw_path}")
+
+        # And prove the lookup actually finds a transcript placed at that name.
+        project_dir = home / ".claude" / "projects" / expected_dir
+        project_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "session.jsonl").write_text("{}\n", encoding="utf-8")
+
+    # Round-trip one real workspace through the production lookup end-to-end.
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+    _write_fake_transcript(home, workspace, [{"type": "text", "text": "hi"}])
+    assert _latest_session_transcript(workspace) is not None, \
+        "lookup must find a transcript written at Claude Code's real directory name"
+
+
+def test_real_run_sets_node_path_and_python_encoding_in_subprocess_env(mock_dirs):
+    """SKILL.md step 1 mandates `export NODE_PATH="$PWD/node_modules"` so
+    build.js can resolve `docx`, and the skill's Python tools need utf-8 stdio
+    on Windows. config.CLAUDE_ALLOWED_TOOLS does not grant bare `export`, so on
+    a real run the model tried it, was denied, and then failed with "Cannot
+    find module 'docx'". Both are now set process-side so nothing has to be
+    exported at all."""
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"result": "done"}', stderr="")
+        (target / "chapter1.docx").touch()
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": False, "candidates": [], "log_records": 0}):
+                run_stage2_chapter(target_dir=target, live_mode=True)
+
+        args, kwargs = mock_popen.call_args
+        env, cwd = kwargs["env"], kwargs["cwd"]
+        assert env["PYTHONIOENCODING"] == "utf-8"
+        # NODE_PATH must point at THIS chapter's workspace, since node_modules is
+        # installed per-workspace rather than globally.
+        assert env["NODE_PATH"] == str(Path(cwd) / "node_modules")
+        assert "ANTHROPIC_API_KEY" not in env, "subscription billing must not see the API key"
+
+
+def test_real_run_adds_skill_dirs_to_allowed_directories(monkeypatch, mock_dirs, tmp_path):
+    """The model reads $S/lib/figlib.py, $S/tools/*.py etc. as it works. Without
+    --add-dir for the skill install locations those reads are refused with "may
+    only list files in the allowed working directories" -- each denial a wasted
+    turn in a session with nobody present to approve it."""
+    local_skill = tmp_path / "local_skill"
+    local_skill.mkdir()
+    global_skill = tmp_path / "global_skill"
+    global_skill.mkdir()
+    monkeypatch.setattr(config, "CLAUDE_SKILL_INSTALL_DIR", local_skill)
+    monkeypatch.setattr(config, "CLAUDE_SKILL_GLOBAL_INSTALL_DIR", global_skill)
+
+    target = mock_dirs / "chapter1"
+    target.mkdir(parents=True, exist_ok=True)
+
+    with patch('subprocess.Popen') as mock_popen:
+        mock_popen.return_value = _mock_popen(returncode=0, stdout='{"result": "done"}', stderr="")
+        (target / "chapter1.docx").touch()
+
+        with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            with patch('src.claude_cli_subprocess.stage2_cli.capture_retro_findings',
+                       return_value={"ok": False, "candidates": [], "log_records": 0}):
+                run_stage2_chapter(target_dir=target, live_mode=True)
+
+        cmd = mock_popen.call_args[0][0]
+        added = {cmd[i + 1] for i, tok in enumerate(cmd) if tok == "--add-dir"}
+        assert str(target) in added, "chapter folder must stay granted"
+        assert str(local_skill) in added
+        assert str(global_skill) in added
+
+
+def test_write_run_diagnostics_flags_adhoc_scripts_when_patch_unused(monkeypatch, tmp_path):
+    """The ad-hoc-scratch-script pattern must become visible in an artifact.
+    A real run wrote 16 throwaway *.py files to hand-patch content.json and
+    used build.js --patch zero times -- the single most expensive habit
+    measured, and it left no trace in any pipeline output."""
+    home_dir = tmp_path / "home"
+    _set_fake_home(monkeypatch, home_dir)
+
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [
+        {"type": "tool_use", "name": "Write",
+         "input": {"file_path": str(workspace / "_fix_slashes.py")}},
+        {"type": "tool_use", "name": "Write",
+         "input": {"file_path": str(workspace / "_insert_figs.py")}},
+        # Figure scripts are the skill's OWN sanctioned output -- never counted.
+        {"type": "tool_use", "name": "Write",
+         "input": {"file_path": str(workspace / "fig_scripts" / "f01_states.py")}},
+        # Non-Python writes are irrelevant to this signal.
+        {"type": "tool_use", "name": "Write",
+         "input": {"file_path": str(workspace / "content.json")}},
+    ])
+
+    result = write_run_diagnostics(target, workspace)
+
+    assert result["adhoc_scripts"] == ["_fix_slashes.py", "_insert_figs.py"]
+    assert result["patch_invocations"] == 0
+    content = (target / config.RUN_DIAGNOSTICS).read_text(encoding="utf-8")
+    assert "_fix_slashes.py" in content
+    assert "f01_states.py" not in content, "fig_scripts/ is sanctioned, must not be flagged"
+    assert "content.json" not in content
+
+
+def test_write_run_diagnostics_counts_patch_invocations(monkeypatch, tmp_path):
+    """A run that used the cheap path has nothing to answer for -- the counter
+    must record --patch usage so the two cases stay distinguishable."""
+    home_dir = tmp_path / "home"
+    _set_fake_home(monkeypatch, home_dir)
+
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+
+    _write_fake_transcript(home_dir, workspace, [
+        {"type": "tool_use", "name": "Bash",
+         "input": {"command": "node $S/lib/build.js content.json --patch patch.json -o out.docx"}},
+    ])
+
+    result = write_run_diagnostics(target, workspace)
+    assert result["patch_invocations"] == 1
+    assert result["adhoc_scripts"] == []
+
+
+def test_write_run_diagnostics_writes_nothing_on_a_clean_run(monkeypatch, tmp_path):
+    """No ad-hoc scripts and no --patch calls is an unremarkable run: no file,
+    no warning, nothing for a human to read."""
+    home_dir = tmp_path / "home"
+    _set_fake_home(monkeypatch, home_dir)
+
+    target = tmp_path / "chapter1"
+    target.mkdir()
+    workspace = tmp_path / "workspace" / "chapter1"
+    workspace.mkdir(parents=True)
+    _write_fake_transcript(home_dir, workspace, [{"type": "text", "text": "nothing notable"}])
+
+    result = write_run_diagnostics(target, workspace)
+    assert result == {"adhoc_scripts": [], "patch_invocations": 0}
+    assert not (target / config.RUN_DIAGNOSTICS).exists()
+
 
 def test_web_enrichment_enabled_adds_scoped_tools_and_search_cap(monkeypatch, mock_dirs):
     """When opted in, --allowedTools must grant bare WebSearch plus ONLY
@@ -487,10 +730,16 @@ def test_web_enrichment_enabled_adds_scoped_tools_and_search_cap(monkeypatch, mo
         assert "WebFetch(domain:example.org)" in tokens
         assert kwargs["env"]["CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION"] == "3"
 
-def test_web_enrichment_writes_manifest_only_when_enabled(monkeypatch, mock_dirs):
-    """write_web_sources_manifest() must only run when the operator opted
-    in -- otherwise a chapter generated without web tools would get a
-    spurious/empty audit file."""
+def test_web_enrichment_always_writes_manifest_with_the_grant_it_used(monkeypatch, mock_dirs):
+    """write_web_sources_manifest() runs on EVERY successful chapter, and is
+    told which grant the run actually got.
+
+    It used to be skipped entirely when enrichment was off, which meant the
+    single most useful fact ("this run could not search at all") was recorded
+    nowhere -- and the model's own prose filled the vacuum with a wrong reason.
+    `enabled` is passed explicitly rather than re-read from config inside the
+    manifest writer, so the file can never disagree with what run_claude_cli
+    was actually handed."""
     target = mock_dirs / "chapter1"
     target.mkdir(parents=True, exist_ok=True)
     (target / "chapter1.docx").touch()
@@ -499,15 +748,18 @@ def test_web_enrichment_writes_manifest_only_when_enabled(monkeypatch, mock_dirs
         mock_popen.return_value = _mock_popen(returncode=0, stdout='{"ok": true, "result": "done"}', stderr="")
 
         with patch('src.claude_cli_subprocess.stage2_cli.sync_skill_package'):
+            monkeypatch.setattr(config, "ENABLE_WEB_ENRICHMENT", False)
             with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest') as mock_manifest:
                 assert run_stage2_chapter(target_dir=target, live_mode=True) == EXIT_OK
-                mock_manifest.assert_not_called()
+                mock_manifest.assert_called_once()
+                assert mock_manifest.call_args.kwargs["enabled"] is False
 
             monkeypatch.setattr(config, "ENABLE_WEB_ENRICHMENT", True)
             (target / config.MARKER).unlink(missing_ok=True)
             with patch('src.claude_cli_subprocess.stage2_cli.write_web_sources_manifest') as mock_manifest:
                 assert run_stage2_chapter(target_dir=target, live_mode=True) == EXIT_OK
                 mock_manifest.assert_called_once()
+                assert mock_manifest.call_args.kwargs["enabled"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -518,7 +770,7 @@ def test_web_enrichment_writes_manifest_only_when_enabled(monkeypatch, mock_dirs
 
 def test_verify_resolved_skill_ok_when_resolved_dir_is_expected(monkeypatch, tmp_path):
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
     workspace = tmp_path / "workspace" / "chapter1"
     workspace.mkdir(parents=True)
 
@@ -534,7 +786,7 @@ def test_verify_resolved_skill_flags_unexpected_resolution(monkeypatch, tmp_path
     skill (e.g. a stale ~/.claude/skills/study-notes.bak-* directory)
     resolved instead of one of the expected, freshly-synced locations."""
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
     workspace = tmp_path / "workspace" / "chapter1"
     workspace.mkdir(parents=True)
 
@@ -552,7 +804,7 @@ def test_verify_resolved_skill_unchecked_when_no_resolution_line_present(monkeyp
     invokes /study-notes at all) -- must degrade to checked=False, ok=True,
     never treated as a failure just because nothing was found to check."""
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
     workspace = tmp_path / "workspace" / "chapter1"
     workspace.mkdir(parents=True)
 
@@ -563,7 +815,7 @@ def test_verify_resolved_skill_unchecked_when_no_resolution_line_present(monkeyp
 
 def test_verify_resolved_skill_unchecked_when_transcript_missing(monkeypatch, tmp_path):
     home_dir = tmp_path / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
     result = verify_resolved_skill(tmp_path / "workspace" / "no-such-chapter", {"/expected/study-notes"})
     assert result == {"checked": False, "ok": True, "resolved": None}
 
@@ -575,7 +827,7 @@ def test_run_stage2_chapter_fatal_when_resolved_skill_is_unexpected(monkeypatch,
     as FATAL -- this check runs independently of, and before, the
     expected_docx.exists() success gate."""
     home_dir = mock_dirs / "home"
-    monkeypatch.setenv("HOME", str(home_dir))
+    _set_fake_home(monkeypatch, home_dir)
 
     target = mock_dirs / "chapter1"
     target.mkdir(parents=True, exist_ok=True)
@@ -764,7 +1016,10 @@ def test_repackage_skill_dir_round_trips(tmp_path):
     extracted = tmp_path / "extracted"
     with zipfile.ZipFile(original) as zf:
         zf.extractall(extracted)
-    (extracted / "LESSONS.md").write_text("# new file\n", encoding="utf-8")
+    # newline="" disables Python's text-mode "\n" -> "\r\n" translation, which
+    # on Windows would otherwise make the byte-exact assertion below fail for a
+    # reason that has nothing to do with repackage_skill_dir().
+    (extracted / "LESSONS.md").write_text("# new file\n", encoding="utf-8", newline="")
 
     out = tmp_path / "repackaged.skill"
     _repackage_skill_dir(extracted, out)

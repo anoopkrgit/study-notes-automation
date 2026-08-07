@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import os
 import json
+import sys
 import tempfile
 import subprocess
 from pathlib import Path
@@ -74,6 +75,17 @@ from src.claude_cli_subprocess.stage2_cli import _chapter_workspace
 # src/common/web_enrichment.py. The wrappers below just adapt it to the
 # agents tool signature (which passes a chapter_dir every tool must accept).
 from src.common.web_enrichment import web_search as _web_search, web_fetch as _web_fetch
+
+# The interpreter the skill's own Python tools are run with. sys.executable,
+# NOT a bare "python3": on native Windows "python3" resolves to whatever the
+# PATH/Store alias happens to point at (measured on a live machine: a 3.14
+# install, while the pipeline itself was running under 3.12), so the skill
+# scripts would execute under a DIFFERENT interpreter than the one whose
+# dependencies were provisioned -- surfacing as ModuleNotFoundError from
+# validate.py rather than as anything that names the real cause. sys.executable
+# is what skill_retro.py and main.py's --doctor already use; this module was
+# the odd one out. On POSIX it resolves to the same interpreter "python3" would.
+PY = sys.executable
 
 
 def _validate_path(requested: str, allowed_root: str) -> Path:
@@ -151,7 +163,7 @@ def tool_ingest(pdf_path: str, chapter_dir: str) -> dict:
     ingest_script = skill_dir / 'tools' / 'ingest.py'
     
     result = subprocess.run(
-        ['python3', str(ingest_script), pdf_path, '--out', chapter_dir],
+        [PY, str(ingest_script), pdf_path, '--out', chapter_dir],
         capture_output=True, text=True, env=_skill_run_env(chapter_dir)
     )
     
@@ -235,7 +247,7 @@ def tool_write_content_json(content: dict, chapter_dir: str) -> dict:
         
     try:
         result = subprocess.run(
-            ['python3', str(validate_script), tmp_path, '--schema', str(schema_path)],
+            [PY, str(validate_script), tmp_path, '--schema', str(schema_path)],
             capture_output=True, text=True, env=_skill_run_env(chapter_dir)
         )
         if result.returncode == 0:
@@ -276,7 +288,7 @@ def tool_write_figures_json(figures: dict, chapter_dir: str) -> dict:
         
     try:
         result = subprocess.run(
-            ['python3', str(validate_script), tmp_path, '--schema', str(schema_path)],
+            [PY, str(validate_script), tmp_path, '--schema', str(schema_path)],
             capture_output=True, text=True, env=_skill_run_env(chapter_dir)
         )
         if result.returncode == 0:
@@ -349,7 +361,7 @@ def tool_figbuild(figures_json_path: str, chapter_dir: str) -> dict:
     # RULES specifically look for, leak into an unscoped run.jsonl at the
     # parent process's cwd. See _skill_run_env's docstring.
     result = subprocess.run(
-        ['python3', str(figbuild_script), figures_json_path, '--out', chapter_dir],
+        [PY, str(figbuild_script), figures_json_path, '--out', chapter_dir],
         capture_output=True, text=True, env=_skill_run_env(chapter_dir)
     )
     
@@ -458,26 +470,26 @@ def tool_run_structural_gates(content_json_path: str, figures_json_path: str) ->
     schema_content = skill_dir / 'schema' / 'content.schema.json'
     schema_figs = skill_dir / 'schema' / 'figures.schema.json'
 
-    r1 = subprocess.run(['python3', str(validate_script), content_json_path, '--schema', str(schema_content)], capture_output=True, text=True, env=run_env)
+    r1 = subprocess.run([PY, str(validate_script), content_json_path, '--schema', str(schema_content)], capture_output=True, text=True, env=run_env)
     if r1.returncode != 0:
         schema_ok = False
         failures.append(f"Content Schema: {r1.stderr}")
 
-    r2 = subprocess.run(['python3', str(validate_script), figures_json_path, '--schema', str(schema_figs)], capture_output=True, text=True, env=run_env)
+    r2 = subprocess.run([PY, str(validate_script), figures_json_path, '--schema', str(schema_figs)], capture_output=True, text=True, env=run_env)
     if r2.returncode != 0:
         schema_ok = False
         failures.append(f"Figures Schema: {r2.stderr}")
 
     # verify.py
     verify_script = skill_dir / 'tools' / 'verify.py'
-    r3 = subprocess.run(['python3', str(verify_script), content_json_path], capture_output=True, text=True, env=run_env)
+    r3 = subprocess.run([PY, str(verify_script), content_json_path], capture_output=True, text=True, env=run_env)
     if r3.returncode != 0:
         verify_ok = False
         failures.append(f"Verify: {r3.stderr}")
 
     # invariants.py
     invariants_script = skill_dir / 'tools' / 'invariants.py'
-    r4 = subprocess.run(['python3', str(invariants_script), content_json_path], capture_output=True, text=True, env=run_env)
+    r4 = subprocess.run([PY, str(invariants_script), content_json_path], capture_output=True, text=True, env=run_env)
     if r4.returncode != 0:
         invariants_ok = False
         failures.append(f"Invariants: {r4.stderr}")
@@ -507,14 +519,14 @@ def tool_run_quality_gates(content_json_path: str, chapter_dir: str) -> dict:
     deltas = {}
     run_env = _skill_run_env(chapter_dir)
 
-    r1 = subprocess.run(['python3', str(pedagogy_script), content_json_path], capture_output=True, text=True, env=run_env)
+    r1 = subprocess.run([PY, str(pedagogy_script), content_json_path], capture_output=True, text=True, env=run_env)
     if r1.returncode != 0:
         pedagogy_ok = False
         deltas["pedagogy"] = r1.stderr
 
     # baseline.py's real signature is: baseline.py <docx> --content <content.json> [...]
     # (positional docx path, required --content flag) -- there is no --dir flag.
-    r2 = subprocess.run(['python3', str(baseline_script), docx_path, '--content', content_json_path], capture_output=True, text=True, env=run_env)
+    r2 = subprocess.run([PY, str(baseline_script), docx_path, '--content', content_json_path], capture_output=True, text=True, env=run_env)
     if r2.returncode != 0:
         baseline_ok = False
         deltas["baseline"] = r2.stderr
@@ -539,7 +551,7 @@ def tool_run_document_qa(docx_path: str, content_json_path: str, do_pdf_check: b
     skill_dir = Path(ensure_skill_extracted())
     qa_script = skill_dir / 'tools' / 'qa.py'
 
-    cmd = ['python3', str(qa_script), docx_path, '--content', content_json_path]
+    cmd = [PY, str(qa_script), docx_path, '--content', content_json_path]
     if do_pdf_check:
         cmd.append('--pdf')  # qa.py's real flag is --pdf, not --pdf-check
 
