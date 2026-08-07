@@ -66,12 +66,21 @@ there's no separate `pytest.ini`; pytest still runs off plain file/function disc
 `tests/`.
 
 **This repo must work on native Windows AND Linux/WSL — verify on both before calling a
-change done** (see "Cross-platform" below for the defect classes that keep recurring). WSL
-is the second platform, reached via `wsl.exe -e bash -lc "cd /mnt/c/... && ..."`. Its system
-Python has no test deps, so make a throwaway venv (`python3 -m venv /tmp/v && /tmp/v/bin/pip
-install pytest jsonschema httpx anthropic`). Some suites additionally need optional deps
-(langgraph) that may be absent — so **establish a HEAD baseline with `git stash` and diff the
-failure sets**, rather than reading raw pass/fail counts; pre-existing failures are normal.
+change done** (see "Cross-platform" below for the defect classes that keep recurring). WSL is
+the second platform, reached via `wsl.exe -e bash -lc "cd /mnt/c/... && ..."`. Its system
+Python has no project deps, so build the venv from `requirements.txt` — **not** a hand-picked
+subset:
+
+```bash
+python3 -m venv /tmp/v && /tmp/v/bin/pip install -r requirements.txt pytest
+/tmp/v/bin/python -m pytest tests/ -q     # expect the same count as Windows
+```
+
+A partially-provisioned venv produces ~20 failures that look like real Linux bugs and are
+not (`langgraph`, `ddgs`, `pypdf` missing → `ModuleNotFoundError`, plus `AttributeError`
+cascades from the same cause). Both platforms are expected to be **fully green and equal**;
+if they differ, suspect provisioning before code. `pytest` is the only test-time extra —
+everything the suite and the skill need at runtime is declared in `requirements.txt`.
 
 ## Architecture: three parallel implementations per stage
 

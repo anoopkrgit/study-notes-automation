@@ -270,16 +270,29 @@ fingerprint with no clock in it.
 `settings.py` (`G:/` vs `/mnt/g`), and `main.py`'s npm probe were all already
 platform-branched correctly.
 
-### Open, not a code fix: `jsonschema` missing on Windows
+### 5. The skill's runtime dependencies were never declared
 
-The skill's `tools/validate.py` imports `jsonschema`, which is installed under **neither**
-Windows interpreter on this machine. The live run hit exactly this
-(`ModuleNotFoundError: No module named 'jsonschema'`, 06:50:37) and the model hand-worked
-around it — part of why the run was expensive. Provisioning gap, not code:
+The live run hit `ModuleNotFoundError: No module named 'jsonschema'` (06:50:37) and the model
+hand-worked around it — part of why the run was expensive. The cause was not a machine
+misconfiguration but a missing declaration: **four hard runtime dependencies of the packaged
+skill were absent from both `requirements.txt` and `pyproject.toml`**, and merely happened to
+be installed on the dev machine.
 
-```bash
-py -3.12 -m pip install jsonschema
-```
+| Package | Needed by | On the normal path? |
+|---|---|---|
+| `jsonschema` | `tools/validate.py` | yes — gates every build |
+| `numpy` | `lib/figbuild.py`, `lib/figlib.py`, `tools/ingest.py`, `tools/qa.py` | yes |
+| `matplotlib` | `lib/figlib.py` | yes — all diagram rendering |
+| `Pillow` | `tools/ingest.py`, `tools/qa.py` | yes — page images, render checks |
+
+They belong in this repo's dependency list even though they are the *skill's* imports,
+because the skill's tools run as subprocesses under this same interpreter (`sys.executable`,
+see defect 3). Now declared. Verified by building a venv from `requirements.txt` alone: every
+skill import resolves, `--doctor` is clean, and the suite is 180/180 on Linux.
+
+This also explains the "20 WSL failures" seen while auditing: they were an under-provisioned
+throwaway venv, not Linux defects. With a `requirements.txt`-built venv both platforms are
+fully green and equal.
 
 ## Agreed remediation
 

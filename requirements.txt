@@ -6,3 +6,20 @@ openpyxl>=3.1.0
 langgraph>=0.2.0
 langgraph-checkpoint-sqlite>=1.0.0
 ddgs>=9.0.0  # web search backend for tool_web_search (src/agents/tools.py), only used when ENABLE_WEB_ENRICHMENT=1
+
+# Runtime dependencies of the packaged study-notes skill (templates/study-notes.skill),
+# NOT of this repo's own Python. They belong here anyway: the skill's tools run as
+# subprocesses under this same interpreter (src/agents/tools.py invokes them with
+# sys.executable), so a Stage 2 run fails without them. Every one of these is on the
+# normal path -- validate.py gates every build, figlib/figbuild draw every diagram,
+# ingest/qa handle every source page -- so none is optional.
+#   jsonschema  -> tools/validate.py           (structural gate)
+#   numpy       -> lib/figbuild.py, lib/figlib.py, tools/ingest.py, tools/qa.py
+#   matplotlib  -> lib/figlib.py               (all diagram rendering)
+#   Pillow      -> tools/ingest.py, tools/qa.py (page images, render checks)
+# Previously undeclared and merely present-by-luck on the dev machine; a fresh install
+# hit "ModuleNotFoundError: No module named 'jsonschema'" mid-run instead.
+jsonschema>=4.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+Pillow>=10.0.0

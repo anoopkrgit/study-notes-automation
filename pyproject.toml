@@ -16,6 +16,13 @@ dependencies = [
     "langgraph>=0.2.0",
     "langgraph-checkpoint-sqlite>=1.0.0",
     "ddgs>=9.0.0",
+    # Runtime deps of the packaged skill (templates/study-notes.skill), which runs its
+    # tools under THIS interpreter via sys.executable -- see requirements.txt for the
+    # per-tool mapping. Undeclared until a fresh install failed mid-run on jsonschema.
+    "jsonschema>=4.0.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+    "Pillow>=10.0.0",
 ]
 
 # PACKAGING NOTE FOR FUTURE MAINTAINERS
