@@ -66,12 +66,27 @@ def run_doctor():
     # script uses to actually produce the .docx file -- see the skill's
     # Formatting section). This is a GLOBAL npm package, not something
     # requirements.txt (which only lists Python packages) can capture.
+    #
+    # Resolve "npm" via shutil.which() FIRST rather than passing the bare
+    # name to subprocess.run(): on Windows, npm ships only as npm.cmd/
+    # npm.ps1 (wrapper scripts around node.exe), never npm.exe. Python's
+    # subprocess (shell=False) launches a bare command name via
+    # CreateProcess, which only auto-appends ".exe" -- it can't find or
+    # launch a .cmd/.ps1 that way, so this always raised FileNotFoundError
+    # on Windows and reported [NOT FOUND] even when docx genuinely was
+    # installed. shutil.which() instead searches PATHEXT (.EXE/.CMD/.BAT/
+    # ...) the same way a shell would, returning the full resolved path
+    # (e.g. ...\npm.cmd); subprocess.run() DOES know how to launch a
+    # fully-qualified .cmd/.bat path correctly.
     import subprocess
-    try:
-        result = subprocess.run(["npm", "ls", "-g", "docx"], capture_output=True, text=True, timeout=15)
-        has_docx_pkg = "docx@" in result.stdout
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        has_docx_pkg = False
+    npm_path = shutil.which("npm")
+    has_docx_pkg = False
+    if npm_path:
+        try:
+            result = subprocess.run([npm_path, "ls", "-g", "docx"], capture_output=True, text=True, timeout=15)
+            has_docx_pkg = "docx@" in result.stdout
+        except (OSError, subprocess.TimeoutExpired):
+            has_docx_pkg = False
     logger.info(f"  - Node package 'docx' (global): {'[AVAILABLE]' if has_docx_pkg else '[NOT FOUND] (install with: npm install -g docx)'}")
 
     # 6. Stale/leftover skill directories under ~/.claude/skills/ (one level
