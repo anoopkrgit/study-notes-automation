@@ -38,7 +38,7 @@ PIP_BIN="$VENV_PATH/bin/pip"
 # each one is for).
 echo "Installing required Python dependencies..."
 "$PIP_BIN" install --quiet --upgrade pip
-"$PIP_BIN" install --quiet -r "$(dirname "${BASH_SOURCE[0]}")/../requirements.txt"
+"$PIP_BIN" install --quiet -r "$(dirname "${BASH_SOURCE[0]}")/requirements.txt"
 
 echo "Python packages installed cleanly."
 
@@ -121,7 +121,11 @@ fi
 #      safe file permissions and ownership in the same step).
 echo "Setting up passwordless Google Drive remount helper (requires sudo)..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REMOUNT_SRC="$SCRIPT_DIR/remount-gdrive"
+# This script lives at the repo ROOT (paired with install.bat, which is the
+# Windows half of the same user-facing install step -- see readme.md). The
+# helper it installs stays in scripts/, which holds machinery invoked BY the
+# installers rather than run by hand.
+REMOUNT_SRC="$SCRIPT_DIR/scripts/remount-gdrive"
 REMOUNT_DST="/usr/local/sbin/remount-gdrive"
 SUDOERS_FILE="/etc/sudoers.d/study-notes-remount"
 

@@ -36,4 +36,4 @@
 ## Verification
 
 - **Native Windows** (not WSL): `pip install git+https://github.com/anoopkrgit/study-notes-runner.git`, run `study-notes-runner` — confirm `setup_check` passes, config resolves, and a full note-generation run succeeds (needs `pdftoppm`/poppler + LibreOffice/`soffice` on PATH, plus `claude` CLI and git).
-- **Linux/WSL/macOS**: re-run existing flows to confirm the new `platform.system()` branches don't regress (`run_test.sh`, `check.sh`, a manual `study-notes-runner` run).
+- **Linux/WSL/macOS**: re-run existing flows to confirm the new `platform.system()` branches don't regress (`run_test.sh`, a manual `study-notes-runner` run).

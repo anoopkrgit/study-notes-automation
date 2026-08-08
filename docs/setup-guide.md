@@ -29,7 +29,8 @@ chmod 600 ~/.anthropic_env
 
 ## Toolchain Dependencies
 
-`scripts/install.sh` installs the Python packages in `requirements.txt` plus the
+`install.sh` (repo root, paired with `install.bat`) installs the Python packages in
+`requirements.txt` plus the
 Node.js `docx` package (globally, via `npm install -g docx` — this is what the
 generator's build script uses to produce the actual `.docx` file). It also checks
 for `node`, `soffice` (LibreOffice, used for SVG→PDF diagram conversion) and
@@ -75,7 +76,7 @@ updated `PATH` is picked up. You also need the `claude` CLI and `git` on PATH
 
 ## Sudo Passwordless Remount Setup
 
-`scripts/install.sh` sets this up automatically (it will prompt for your sudo password
+`install.sh` sets this up automatically (it will prompt for your sudo password
 once, interactively, the same way `sudo apt install` would) — this lets
 `wsl-study-notes-processor.sh` auto-heal a stale Google Drive mount unattended, at
 3 AM, with nobody there to type a password. It validates the sudoers rule with

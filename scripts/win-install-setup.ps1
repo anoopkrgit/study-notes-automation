@@ -59,7 +59,7 @@ try {
 # 2. Invoke WSL Linux installer (venv, dependencies, sudoers remount helper)
 Write-Host "Invoking WSL linux installer (install.sh)..." -ForegroundColor Yellow
 $WslRepoRoot = ($RepoRoot -replace '^([A-Za-z]):', { '/mnt/' + $_.Groups[1].Value.ToLower() }) -replace '\\', '/'
-wsl.exe -e bash -c "bash '$WslRepoRoot/scripts/install.sh'"
+wsl.exe -e bash -c "bash '$WslRepoRoot/install.sh'"
 
 Write-Host "====================================================================" -ForegroundColor Cyan
 Write-Host "Windows installation setup finished!" -ForegroundColor Green

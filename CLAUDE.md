@@ -60,10 +60,13 @@ python3 src/main.py --stage1-mode llm-full --stage1-impl subprocess
 python3 src/main.py --stage2-mode llm-full --stage2-impl graph
 ```
 
-No linter/formatter is configured in this repo. `pyproject.toml` exists but only for
-packaging (see "Packaging as a dependency" below) — it has no `[tool.pytest]` section, and
-there's no separate `pytest.ini`; pytest still runs off plain file/function discovery in
-`tests/`.
+No linter/formatter is configured in this repo. `pyproject.toml` carries packaging (see
+"Packaging as a dependency" below) plus one `[tool.pytest.ini_options]` key, `testpaths =
+["tests"]`; there's no separate `pytest.ini`. `testpaths` is a safety gate, not style: a
+bare `pytest` recurses from rootdir, so any top-level `test_*.py` gets collected — a scratch
+file named `test_api.py` (a hand-run Anthropic repro, since deleted) was collectable, and
+its calls were all module-level, so collection alone would have fired real billable API
+requests. Keep scratch scripts out of the root, and don't remove `testpaths`.
 
 **This repo must work on native Windows AND Linux/WSL — verify on both before calling a
 change done** (see "Cross-platform" below for the defect classes that keep recurring). WSL is
@@ -316,6 +319,28 @@ point state/logs outside site-packages.
 If you change how `LOCAL_RUNTIME_ROOT` (or any other path derived from `__file__`) is
 computed, re-check this packaging story — it was verified against one specific layout, not
 derived from a general principle.
+
+### `requirements.txt` is a BUILD INPUT — never delete it
+
+Two install paths are live and **neither reads the other's file**, which is why both
+`requirements.txt` and `pyproject.toml` exist. It is not duplication to clean up:
+
+- **Git clone + nightly scheduler** — `install.sh` (repo ROOT, paired with `install.bat`;
+  it is *not* in `scripts/`) does `pip install -r requirements.txt` into `~/.global_venv`,
+  which `scripts/wsl-study-notes-processor.sh` then runs the pipeline from. This path never
+  builds the repo as a package and never reads `pyproject.toml`.
+- **`pip install git+...@develop`** (how `run-claude-agent` consumes this repo) — reads
+  `pyproject.toml`, which declares `dynamic = ["dependencies"]` and pulls the list from
+  `requirements.txt` via `[tool.setuptools.dynamic]`. pip never reads `requirements.txt` on
+  its own; that indirection is what makes it happen.
+
+So the dependency list is maintained in exactly ONE place (`requirements.txt`) and consumed
+by both. The consequence: `requirements.txt` must stay tracked and must stay valid
+requirements syntax — pins and `#` comments only, no `-r`/`-e`/`--index-url` lines, which
+setuptools rejects there. Deleting it, untracking it, or "folding it into pyproject" breaks
+the pip-install path at BUILD time, where this repo's own test suite cannot see it. Verified
+by reconstructing a clone from the git index and running a real `pip install` from it: all
+12 deps resolved and the `config`/`src`/`templates` sibling layout held in site-packages.
 
 ## Docs worth reading before larger changes
 

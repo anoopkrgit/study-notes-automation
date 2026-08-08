@@ -7,23 +7,25 @@ name = "study-notes-automation"
 version = "0.1.0"
 description = "Unattended pipeline that turns lecture transcripts and reference material into print-ready study-notes .docx files"
 requires-python = ">=3.10"
-dependencies = [
-    "anthropic>=0.18.0",
-    "pypdf>=4.0.0",
-    "python-docx>=1.1.0",
-    "python-dotenv>=1.0.0",
-    "openpyxl>=3.1.0",
-    "langgraph>=0.2.0",
-    "langgraph-checkpoint-sqlite>=1.0.0",
-    "ddgs>=9.0.0",
-    # Runtime deps of the packaged skill (templates/study-notes.skill), which runs its
-    # tools under THIS interpreter via sys.executable -- see requirements.txt for the
-    # per-tool mapping. Undeclared until a fresh install failed mid-run on jsonschema.
-    "jsonschema>=4.0.0",
-    "numpy>=1.24.0",
-    "matplotlib>=3.7.0",
-    "Pillow>=10.0.0",
-]
+
+# DEPENDENCIES ARE DECLARED ONCE, IN requirements.txt, AND READ FROM THERE.
+# ---------------------------------------------------------------------------
+# Both files exist because two DIFFERENT install paths are live, and neither
+# reads the other's file (see requirements.txt's header for the full map):
+#   * requirements.txt -> install.sh -> ~/.global_venv -> the nightly run
+#   * pyproject.toml   -> `pip install git+...@develop` -> study-notes-runner
+# The dependency list is identical for both, so it is maintained in exactly
+# one place and pulled in here. Keeping two hand-written copies in sync is a
+# guaranteed eventual drift.
+#
+# NOTE: this makes requirements.txt a BUILD INPUT -- it must be present when
+# pip builds the package. A git-URL install clones the whole repo, so it is.
+# If this repo ever publishes an sdist, requirements.txt must be included in
+# it or the build will fail with "dynamic dependencies file not found".
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 # PACKAGING NOTE FOR FUTURE MAINTAINERS
 # ---------------------------------------------------------------------------
@@ -67,3 +69,12 @@ templates = "templates"
 
 [tool.setuptools.package-data]
 templates = ["*.skill"]
+
+[tool.pytest.ini_options]
+# Confine collection to tests/. Without this, a bare `pytest` from the repo
+# root recurses from rootdir and collects ANY top-level test_*.py -- which is
+# how a scratch file named test_api.py (a hand-run Anthropic API repro, since
+# deleted) became collectable. Its calls were all module-level, so collection
+# alone would have fired real, billable API requests. Scratch scripts should
+# not be able to run just because of where they sit.
+testpaths = ["tests"]

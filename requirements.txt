@@ -1,3 +1,21 @@
+# THE dependency list for this repo -- the single source of truth, read by BOTH
+# install paths. Neither path reads the other's file, which is why both files
+# exist; do not "deduplicate" them by deleting one.
+#
+#   1. Git clone + nightly scheduler:
+#        install.sh -> pip install -r requirements.txt -> ~/.global_venv
+#        -> scripts/wsl-study-notes-processor.sh runs the pipeline from it.
+#      This path never builds the repo as a package and never reads pyproject.
+#
+#   2. pip install (study-notes-runner depends on this repo by git URL):
+#        pyproject.toml declares `dynamic = ["dependencies"]` and reads THIS
+#        FILE via [tool.setuptools.dynamic]. pip never reads requirements.txt
+#        on its own -- pyproject is what makes that happen.
+#
+# Consequence of (2): this file is a BUILD INPUT. Keep it valid requirements
+# syntax (pins + `#` comments only -- no `-r`/`-e`/`--index-url` lines, which
+# setuptools will not accept here).
+
 anthropic>=0.18.0
 pypdf>=4.0.0
 python-docx>=1.1.0

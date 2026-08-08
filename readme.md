@@ -25,7 +25,6 @@ study-notes-automation/
 │   ├── stage2-claude-cli-migration-plan.md
 │   └── web-enrichment-plan.md
 ├── scripts/
-│   ├── install.sh                   # Linux dependency & venv setup
 │   ├── win-install-setup.ps1        # Windows directory & Task Scheduler setup
 │   ├── win-environment-setup.ps1    # Windows host power & Google Drive wrapper
 │   ├── wsl-study-notes-processor.sh # WSL Linux entrypoint
@@ -44,6 +43,7 @@ study-notes-automation/
 │   └── test_main_cli.py             # CLI flag combination tests
 ├── .gitignore
 ├── install.bat                      # 1-Click Windows installer launcher
+├── install.sh                       # Linux/WSL/macOS installer (deps + venv)
 ├── license                          # MIT License
 ├── readme.md                        # This file
 └── requirements.txt                 # Python dependencies
@@ -93,7 +93,7 @@ git clone https://github.com/anoopkrgit/study-notes-automation.git
 cd study-notes-automation
 
 # 2. Run the installer (sets up venv + dependencies)
-bash scripts/install.sh
+bash install.sh
 
 # 3. Set your API key
 export ANTHROPIC_API_KEY="sk-ant-..."
