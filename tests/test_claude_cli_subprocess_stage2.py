@@ -562,13 +562,18 @@ def test_session_transcript_dir_matches_real_claude_code_layout(monkeypatch, tmp
         "lookup must find a transcript written at Claude Code's real directory name"
 
 
-def test_real_run_sets_node_path_and_python_encoding_in_subprocess_env(mock_dirs):
+def test_real_run_sets_node_path_and_python_encoding_in_subprocess_env(monkeypatch, mock_dirs):
     """SKILL.md step 1 mandates `export NODE_PATH="$PWD/node_modules"` so
     build.js can resolve `docx`, and the skill's Python tools need utf-8 stdio
     on Windows. config.CLAUDE_ALLOWED_TOOLS does not grant bare `export`, so on
     a real run the model tried it, was denied, and then failed with "Cannot
     find module 'docx'". Both are now set process-side so nothing has to be
     exported at all."""
+    # build_claude_env() setdefault()s PYTHONIOENCODING so a deliberate ambient
+    # override survives; clear it so this test exercises the unset case it is
+    # actually about rather than whatever the developer's shell exports.
+    monkeypatch.delenv("PYTHONIOENCODING", raising=False)
+
     target = mock_dirs / "chapter1"
     target.mkdir(parents=True, exist_ok=True)
 
