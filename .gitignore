@@ -58,3 +58,19 @@ state/workspace/
 # ── LangGraph dev/test run artifacts (checkpoints, debug progress dumps) ────
 state/graph-checkpoints/
 state/progress/
+
+# ── Runtime state (NEVER commit) ────────────────────────────────────────────
+# state/assemble-state.json was previously tracked "for progress preservation"
+# and, because it stores the ABSOLUTE source path of every file Stage 1 has
+# routed, it published 155 real paths -- the student's name, their coaching
+# programme, and a dated record of which lecture happened when. It is pure
+# runtime state: load_state() returns {"processed": {}} when the file is
+# absent, so a fresh clone just re-routes from scratch. Back it up outside
+# git if you want it preserved; do not re-add it here.
+# (No .gitkeep negation here on purpose -- git cannot re-include a file whose
+# parent directory is excluded, and the code mkdirs state/ on demand anyway.)
+state/
+
+# ── Local PII patterns for githooks/pre-commit (see .pii-patterns.example) ──
+# Holds the real names the hook blocks, so it must never be committed itself.
+.pii-patterns

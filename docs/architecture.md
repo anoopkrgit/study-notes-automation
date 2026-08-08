@@ -34,7 +34,7 @@ are linear; step 4 branches per-stage across three parallel implementations, sel
    ├─► STAGE 1: Chapter Folder Assembler                    [src/direct_api/stage1_api.py::run_assemble()]
    │   │  [Env Stabilization]
    │   ├─► Load `ANTHROPIC_API_KEY` from `~/.anthropic_env` & SHA-256 state (`state/assemble-state.json`)
-   │   ├─► Read incoming files from `Lecture-Downloads/` & `Collected-Study-Materials/`
+   │   ├─► Read incoming files from `$TRANSCRIPT_SRC/` & `$COLLECTED_SRC/`
    │   │  [Per-file routing -- dispatch.route_file(impl), src/agents/dispatch.py]
    │   ├─ --stage1-impl legacy (default) ─► llm_route()        [src/direct_api/stage1_api.py]
    │   │                                      └─► run_router() ─► client.messages.create()          ⟵ Anthropic API

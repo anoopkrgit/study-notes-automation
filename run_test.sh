@@ -10,7 +10,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR="/mnt/g/My Drive/Education/Student/Study-Programme/AI-Chapter-Notes"
+
+# Read the target root from settings.py rather than hardcoding it here -- the
+# real path is personal and this repo is public. settings.py only ships generic
+# placeholders, so export TARGET_ROOT before running this (the runner does that
+# for you), otherwise the find below fails loudly against a folder that does
+# not exist. Same trick as scripts/wsl-study-notes-processor.sh.
+TARGET_DIR=$(python3 -c "import sys; sys.path.insert(0, '$SCRIPT_DIR'); from config.settings import DEFAULT_TARGET_ROOT; print(DEFAULT_TARGET_ROOT)")
 
 echo "Chapter folders under: $TARGET_DIR"
 find "$TARGET_DIR" -maxdepth 1 -mindepth 1 -type d -not -name "_*" | sort

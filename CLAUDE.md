@@ -171,6 +171,13 @@ real production run.
 
 - `state/assemble-state.json` — SHA-256 content hashes of every file Stage 1 has already
   routed; re-runs only process genuinely new files. Don't hand-edit casually.
+  **Untracked** — the whole of `state/` is gitignored, and `githooks/pre-commit` blocks
+  it structurally. It was tracked once "for progress preservation" and, because each
+  entry stores the ABSOLUTE source path of a routed file, that published 155 real paths
+  (a student's name, their coaching programme, and a dated record of which lecture
+  happened when) to a public repo. It is pure runtime state: `load_state()` returns
+  `{"processed": {}}` when the file is absent, so a fresh clone just re-routes from
+  scratch. Back it up outside git if you want it preserved; do not re-add it.
 - `state/retry-epoch.txt` — written on a retryable API/CLI error with the actual
   reset time (read from response headers when available); the nightly wrapper schedules a
   Windows wake task against it.
@@ -214,6 +221,38 @@ via `tool_web_search`/`tool_web_fetch` in `src/agents/tools.py`, and `direct_api
 same tools ported in per PR #7/#8), and
 `ENABLE_AUTO_SKILL_IMPROVEMENT`/`AUTO_SKILL_IMPROVEMENT_WORKSPACE` (opt-in autonomous
 application of `retro.py` candidates, `regress.py`-gated — off by default).
+
+### Source/target paths are placeholders on purpose
+
+`DEFAULT_TRANSCRIPT_SRC`/`DEFAULT_COLLECTED_SRC`/`DEFAULT_TARGET_ROOT` fall back to
+**generic placeholders** (`.../Education/Student/...`) that are not expected to resolve to
+anything on disk. This repo is public; a real path here leaks the student's name, their
+coaching programme and the Drive layout, which is exactly what it used to do.
+
+Real paths arrive as the `TRANSCRIPT_SRC`/`COLLECTED_SRC`/`TARGET_ROOT` env vars, exported
+by the runner (`run-claude-agent`'s `paths_config.py`, which prompts once and saves to
+`paths.json`) **before** it imports this module. There is deliberately no second mechanism —
+no `.env`, no local config file in this repo — because a path settable in two places is a
+path that will eventually disagree with itself.
+
+The consequence to know: invoking `src/main.py` directly, without those vars exported, is
+a **silent no-op** — Stage 1 finds zero files under a placeholder folder and exits 0 having
+done nothing. It does not error. (`run_test.sh` is the exception; its `find` fails loudly
+under `set -euo pipefail`.) If you add a unified entry point, make it the thing that
+guarantees those vars are set.
+
+### Personal data must not re-enter this repo
+
+`githooks/pre-commit` (enable per clone with `git config core.hooksPath githooks`) blocks
+two things: anything staged under `state/`, and any staged content or filename matching a
+regex in `.pii-patterns`. That patterns file is **gitignored** — it holds the real names,
+so committing it would publish exactly what it guards; `.pii-patterns.example` is the
+tracked template. The hook is plain `sh` + `grep` so it behaves identically under Git Bash
+and WSL, and `.gitattributes` pins `githooks/*` to `eol=lf` because `core.autocrlf=true`
+would otherwise check it out with CRLF and silently disable it.
+
+Note this only guards *future* commits. The pre-existing git history still contains the
+personal data; removing it there is a separate history-rewrite decision.
 
 ### What the `claude` CLI subprocess is granted, and why it isn't grantable in the prompt
 

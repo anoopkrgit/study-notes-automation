@@ -1,2 +1,8 @@
 *.sh text eol=lf
 *.bash text eol=lf
+
+# Git hooks have no .sh extension but are still shell scripts. Without this,
+# a clone with core.autocrlf=true (the Windows default, and what this machine
+# uses) checks them out with CRLF, and `#!/bin/sh\r` fails as a bad
+# interpreter under Git Bash -- silently disabling the PII guard.
+githooks/* text eol=lf

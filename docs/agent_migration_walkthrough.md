@@ -85,7 +85,7 @@ During review of subagent output, I caught and fixed 3 issues:
 ### 4. Full Pipeline Verification
 - Executed the full pipeline: Stage 1 (Legacy logic via `--run-assemble-no-llm`) + Stage 2 (`DEV_TOKEN_SAVER_MODE=1 STUDY_NOTES_STAGE2_IMPL=graph`).
 - Cleared the `/checkpoints` Sqlite directory and previous `_notes_done` and `_notes_FAILED.txt` markers before execution.
-- Successfully verified that the graph processes the real target chapters from `Education/...`, passes all mock QA gates, cleanly exits with `EXIT_OK (0)`, and correctly touches the `_notes_done` marker file for `Physics-Ch2-Work-Energy-Theorem`.
+- Successfully verified that the graph processes the real target chapters under the configured target root, passes all mock QA gates, cleanly exits with `EXIT_OK (0)`, and correctly touches the `_notes_done` marker file for `Physics-Ch2-Work-Energy-Theorem`.
 
 ### Verification Plan (from the migration doc)
 1. **Unit tests** — `pytest tests/test_dispatch.py tests/test_agents_tools.py tests/test_stage1_graph.py tests/test_stage2_graph.py`

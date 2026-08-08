@@ -1,0 +1,27 @@
+# Personal-data patterns for githooks/pre-commit.
+#
+# Copy to `.pii-patterns` (gitignored) and replace the placeholders with the
+# real names you need to keep out of this public repo. Do NOT put real values
+# in THIS file -- it is tracked, so anything here gets published.
+#
+# One extended regex (ERE) per line. Matching is case-insensitive. Blank lines
+# and lines starting with # are ignored. Patterns are checked against both the
+# staged diff's added lines and the staged filenames.
+#
+# Keep them specific: a pattern like `notes` would match half the repo and
+# train you to bypass the hook, which is worse than having no hook.
+
+# The student's given name, as it appears in folder names.
+StudentGivenName
+
+# The coaching institute / programme, and its batch codes.
+InstituteName
+Programme-Study-[0-9]+th-[0-9]{2}-[0-9]{2}
+
+# The personal Drive folder tree, e.g. "NNN-Education/NN-Somebody" where NNN
+# is the real numeric prefix. (Written with N placeholders on purpose: spelling
+# the real digits out here would trip this very pattern -- as it did once.)
+[0-9]{3}-Education
+
+# The transcript source folder, if its name identifies a batch or channel.
+Lecture-Channel-Download

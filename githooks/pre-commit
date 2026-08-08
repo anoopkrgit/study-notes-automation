@@ -1,0 +1,87 @@
+#!/bin/sh
+# pre-commit -- keep personal data out of this public repository.
+#
+# WHY THIS EXISTS: config/settings.py and run_test.sh once carried real Drive
+# paths, and state/assemble-state.json was committed outright -- together they
+# published a student's name, their coaching programme, and a dated record of
+# 155 routed lecture files. Those literals are now generic placeholders (real
+# paths arrive as env vars from the runner) and the state file is untracked.
+# This hook is what stops any of it coming back.
+#
+# It is deliberately dependency-free: plain sh + grep, so it behaves the same
+# under Git Bash on native Windows and under WSL/Linux. No gitleaks, no Python
+# (which on Windows would drag in the python3-is-a-Store-alias problem).
+#
+# Install once per clone:   git config core.hooksPath githooks
+# Bypass for one commit:    git commit --no-verify
+#
+# The patterns themselves live in .pii-patterns, which is GITIGNORED -- the
+# whole point is that the real name and institute must not be committed, and
+# writing them into a tracked rules file would leak exactly what it guards.
+# Copy .pii-patterns.example to .pii-patterns and fill in your own.
+
+set -u
+
+REPO_ROOT=$(git rev-parse --show-toplevel) || exit 1
+PATTERNS_SRC="$REPO_ROOT/.pii-patterns"
+TMP="$REPO_ROOT/.git/pii-patterns.$$.tmp"   # under .git/, so never committable
+
+fail=0
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+indent() { sed 's/^/  /'; }
+
+# --- Structural rule: runtime state must never be tracked ------------------
+# Independent of .pii-patterns, because the danger is the file's contents
+# (absolute source paths of every routed file), not any single string.
+blocked_paths=$(printf '%s\n' "$staged" | grep -E '^state/' || true)
+if [ -n "$blocked_paths" ]; then
+    echo "BLOCKED: refusing to commit runtime state under state/:"
+    printf '%s\n' "$blocked_paths" | indent
+    echo "  state/ records the absolute path of every routed source file."
+    echo "  It is gitignored; back it up outside git instead."
+    fail=1
+fi
+
+# --- Pattern rules: personal strings in staged content or filenames --------
+if [ ! -f "$PATTERNS_SRC" ]; then
+    echo "note: .pii-patterns not found -- personal-data check skipped."
+    echo "      cp .pii-patterns.example .pii-patterns and fill it in."
+else
+    # Strip comments and blank lines before handing the list to grep -f: one
+    # empty line there is a pattern matching EVERYTHING, which would block
+    # every commit and train you to reflexively pass --no-verify.
+    grep -v '^[[:space:]]*#' "$PATTERNS_SRC" | grep -v '^[[:space:]]*$' > "$TMP" || true
+
+    if [ -s "$TMP" ]; then
+        # Both greps must be -E. In basic regex GNU grep reads `\+` as the
+        # "one or more" OPERATOR, not a literal plus, so `grep -v '^\+\+\+'`
+        # silently drops every added line and the hook passes everything.
+        content_hits=$(git diff --cached --diff-filter=ACM -U0 \
+                       | grep -E '^\+' | grep -Ev '^\+\+\+' \
+                       | grep -Ei -f "$TMP" || true)
+        name_hits=$(printf '%s\n' "$staged" | grep -Ei -f "$TMP" || true)
+
+        if [ -n "$content_hits" ]; then
+            echo "BLOCKED: staged content matches a personal-data pattern:"
+            printf '%s\n' "$content_hits" | head -20 | indent
+            fail=1
+        fi
+        if [ -n "$name_hits" ]; then
+            echo "BLOCKED: staged FILENAME matches a personal-data pattern:"
+            printf '%s\n' "$name_hits" | indent
+            fail=1
+        fi
+    fi
+    rm -f "$TMP"
+fi
+
+if [ "$fail" -ne 0 ]; then
+    echo ""
+    echo "Real paths belong in the runner's saved config, which exports"
+    echo "TRANSCRIPT_SRC/COLLECTED_SRC/TARGET_ROOT -- never as a literal here."
+    echo "If this is genuinely a false positive: git commit --no-verify"
+    exit 1
+fi
+
+exit 0

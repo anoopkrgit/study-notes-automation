@@ -37,6 +37,19 @@ CHAPTER_PROGRESS_DIR = STATE_DIR / "progress"
 # and these literals are never used. The Google Drive mount lives at /mnt/g on
 # WSL/Linux but at the G: drive on native Windows, so branch the default root
 # per-OS -- otherwise a direct Windows user gets an unusable /mnt/g path.
+#
+# The literals below are deliberately GENERIC PLACEHOLDERS, never anyone's real
+# layout: this repo is public, and a real path here leaks the student's name,
+# their coaching programme and the Drive structure. They exist only so that
+# `import settings` works and the shape of each path is readable -- they are
+# NOT expected to resolve to anything on disk.
+#
+# Real paths come from the runner, which prompts once and exports the three
+# vars below before importing this module (run-claude-agent's paths_config.py).
+# There is deliberately no second mechanism -- no .env, no config file here --
+# because a path that can be set in two places is a path that will disagree
+# with itself. If you are invoking main.py directly instead of through the
+# runner, export the three vars yourself for that shell.
 _GDRIVE_ROOT = "G:/My Drive" if platform.system() == "Windows" else "/mnt/g/My Drive"
 _EDU_ROOT = f"{_GDRIVE_ROOT}/Education/Student"
 
